@@ -1,0 +1,9 @@
+[project]
+name = "agent-apps"
+version = "0.1.0"
+description = "Small agent utilities for Merquery and OpenClaw"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
