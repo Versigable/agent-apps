@@ -5,7 +5,15 @@ import pytest
 from x_radar.models import Metrics, Post
 from x_radar.rank import is_low_signal, score_post, rank_posts
 from x_radar.render import render_digest
-from x_radar.collect import collect_posts_from_legacy_payloads, parse_legacy_xurl_user_output
+from x_radar.collect import (
+    XApiError,
+    build_search_query,
+    collect_posts,
+    collect_posts_from_legacy_payloads,
+    collect_with_x_api,
+    parse_x_api_search_response,
+    parse_legacy_xurl_user_output,
+)
 from x_radar.cli import main
 
 
@@ -21,6 +29,78 @@ def test_cli_writes_digest_file_with_monkeypatched_collector(tmp_path, monkeypat
 def test_cli_rejects_invalid_max_chars():
     with pytest.raises(SystemExit):
         main(["--max-chars", "100"])
+
+
+def test_build_search_query_quotes_phrases_and_excludes_retweets():
+    query = build_search_query(["OpenClaw", "AI agents", "X API"])
+    assert query == '(OpenClaw OR "AI agents" OR "X API") lang:en -is:retweet'
+
+
+def test_parse_x_api_search_response_normalizes_expanded_users():
+    payload = {
+        "data": [
+            {
+                "id": "123",
+                "text": "OpenClaw and the X API make agent workflows useful",
+                "created_at": "2026-04-24T17:52:19.000Z",
+                "author_id": "u1",
+                "public_metrics": {"reply_count": 2, "retweet_count": 3, "like_count": 10, "quote_count": 1, "bookmark_count": 4, "impression_count": 500},
+            }
+        ],
+        "includes": {"users": [{"id": "u1", "username": "AlexFinn", "name": "Alex Finn"}]},
+    }
+    posts = parse_x_api_search_response(payload, topics=["OpenClaw", "local LLM", "X API"])
+    assert posts == [
+        Post(
+            id="123",
+            text="OpenClaw and the X API make agent workflows useful",
+            author_username="AlexFinn",
+            author_name="Alex Finn",
+            created_at=datetime(2026, 4, 24, 17, 52, 19, tzinfo=timezone.utc),
+            url="https://x.com/AlexFinn/status/123",
+            topic="OpenClaw",
+            metrics=Metrics(replies=2, reposts=3, likes=10, quotes=1, bookmarks=4, views=500),
+        )
+    ]
+
+
+def test_collect_with_x_api_sends_bearer_auth_without_leaking_token(monkeypatch):
+    seen = {}
+
+    class FakeResponse:
+        status = 200
+        def read(self):
+            return b'{"data":[],"includes":{"users":[]}}'
+
+    def fake_urlopen(request, timeout):
+        seen["url"] = request.full_url
+        seen["auth"] = request.headers["Authorization"]
+        assert timeout == 30
+        return FakeResponse()
+
+    monkeypatch.setattr("x_radar.collect.urlopen", fake_urlopen)
+    posts = collect_with_x_api("secret-token", topics=["OpenClaw"], max_results=10)
+    assert posts == []
+    assert "Bearer secret-token" == seen["auth"]
+    assert "secret-token" not in seen["url"]
+    assert "tweets/search/recent" in seen["url"]
+
+
+def test_collect_posts_prefers_x_api_when_env_token_exists(monkeypatch):
+    sample = [Post(id="1", text="OpenClaw X API", author_username="a", author_name="A", created_at=datetime.now(timezone.utc), url="u", topic="OpenClaw", metrics=Metrics())]
+    monkeypatch.setenv("X_BEARER_TOKEN", "token")
+    monkeypatch.setattr("x_radar.collect.collect_with_x_api", lambda token, topics, max_results: sample)
+    monkeypatch.setattr("x_radar.collect.collect_with_legacy_xurl", lambda config: [])
+    assert collect_posts() == sample
+
+
+def test_collect_posts_falls_back_to_legacy_when_x_api_errors(monkeypatch):
+    sample = [Post(id="1", text="OpenClaw X API", author_username="a", author_name="A", created_at=datetime.now(timezone.utc), url="u", topic="OpenClaw", metrics=Metrics())]
+    monkeypatch.setenv("X_BEARER_TOKEN", "token")
+    monkeypatch.setattr("x_radar.collect.collect_with_x_api", lambda token, topics, max_results: (_ for _ in ()).throw(XApiError("boom")))
+    monkeypatch.setattr("x_radar.collect.detect_legacy_xurl", lambda: True)
+    monkeypatch.setattr("x_radar.collect.collect_with_legacy_xurl", lambda config: sample)
+    assert collect_posts() == sample
 
 
 def test_legacy_payload_collection_emits_each_tweet_once_with_best_topic():
