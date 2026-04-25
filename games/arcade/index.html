@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agent Game Arcade</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Agent-built game testing hub</p>
+        <h1>Agent Game Arcade</h1>
+        <p class="lede">
+          A launcher, scorecard, and smoke-test dashboard for games built by Merquery,
+          DrClawBotNik, and future specialist agents.
+        </p>
+      </section>
+
+      <section class="ops-panel" aria-label="Testing workflow">
+        <h2>Default test workflow</h2>
+        <ol>
+          <li>Agent builds or updates a game under <code>games/&lt;id&gt;/</code>.</li>
+          <li>Agent registers it in <code>games/manifest.json</code>.</li>
+          <li>Run <code>npm test</code> to launch browser smoke tests.</li>
+          <li>Review screenshots/videos in <code>games/artifacts/</code>.</li>
+          <li>Eric plays the game and fills the manual scorecard.</li>
+        </ol>
+      </section>
+
+      <section>
+        <div class="section-heading">
+          <h2>Playable builds</h2>
+          <span id="status" role="status">Loading manifest…</span>
+        </div>
+        <div id="games" class="game-grid" aria-live="polite"></div>
+      </section>
+    </main>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

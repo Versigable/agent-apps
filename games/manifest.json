@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-04-25",
+  "games": [
+    {
+      "id": "fps-gauntlet",
+      "title": "Neon Breach",
+      "type": "fps",
+      "status": "prototype",
+      "agent": "Merquery",
+      "model": "gpt-5.5",
+      "summary": "A browser-native arena FPS prototype for testing agent-built gameplay loops, visual clarity, and browser smoke automation.",
+      "playUrl": "./fps-gauntlet/",
+      "screenshot": "./artifacts/fps-gauntlet-smoke.png",
+      "testCommand": "npm test",
+      "scorecard": {
+        "gameplay": null,
+        "controls": null,
+        "visualClarity": null,
+        "performance": null,
+        "replayability": null,
+        "agentSelfTest": null
+      },
+      "manualChecklist": [
+        "Start the game and confirm pointer lock instructions are clear.",
+        "Use W/A/S/D and verify movement feels correct, not reversed.",
+        "Aim with mouse and fire with left click or F fallback.",
+        "Confirm drones spawn, move toward the player, and can be destroyed.",
+        "Confirm HUD score, wave, health, and heat values update.",
+        "Let enemies hit you and confirm restart flow works when health reaches zero."
+      ],
+      "nextIdeas": [
+        "Add weapon pickups and enemy variants.",
+        "Record automated 10-second gameplay videos in CI.",
+        "Add per-commit model/agent comparison rows."
+      ]
+    }
+  ]
+}

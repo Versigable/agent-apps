@@ -1,0 +1,18 @@
+{
+  "name": "agent-apps",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Monorepo for agent-developed applications and browser game experiments.",
+  "scripts": {
+    "serve:games": "python3 -m http.server 4173 --bind 127.0.0.1",
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:report": "playwright show-report"
+  },
+  "dependencies": {
+    "three": "^0.182.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0"
+  }
+}

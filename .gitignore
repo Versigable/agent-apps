@@ -1,5 +1,8 @@
+.venv/
+.pytest_cache/
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.venv/
 .env
+node_modules/
+games/artifacts/test-results/
+games/artifacts/playwright-report/

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Neon Breach — FPS Gauntlet</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="importmap">
+      { "imports": { "three": "/node_modules/three/build/three.module.js" } }
+    </script>
+  </head>
+  <body>
+    <div id="game-root" data-state="idle" data-shots-fired="0" data-enemy-count="0">
+      <canvas id="game-canvas" aria-label="Neon Breach game canvas"></canvas>
+      <section id="hud" aria-label="Game HUD">
+        <div><span>Health</span><strong data-testid="health" id="health">100</strong></div>
+        <div><span>Score</span><strong data-testid="score" id="score">0</strong></div>
+        <div><span>Wave</span><strong data-testid="wave" id="wave">1</strong></div>
+        <div><span>Heat</span><strong data-testid="heat" id="heat">0</strong></div>
+      </section>
+      <section id="overlay" class="panel">
+        <p class="eyebrow">FPS Gauntlet v0</p>
+        <h1>Neon Breach</h1>
+        <p>
+          Survive drone waves in a neon training vault. WASD moves, mouse looks,
+          left click fires, <kbd>F</kbd> fires for test/headless fallback, <kbd>Shift</kbd> sprints.
+        </p>
+        <button id="start-button" type="button">Start Breach</button>
+        <a href="../arcade/">Back to Agent Game Arcade</a>
+      </section>
+      <section id="message" aria-live="polite"></section>
+      <section id="crosshair" aria-hidden="true">+</section>
+    </div>
+    <script src="./game.js" type="module"></script>
+  </body>
+</html>
