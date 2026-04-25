@@ -29,13 +29,19 @@ Open the arcade at:
 http://127.0.0.1:4173/games/arcade/
 ```
 
-Run browser smoke tests:
+Run browser smoke tests locally:
 
 ```bash
 npm test
 ```
 
-Playwright artifacts are written under `games/artifacts/`.
+Run browser smoke tests in a fresh/CI-like environment where Playwright browsers may not exist yet:
+
+```bash
+npm run test:ci
+```
+
+Generated Playwright artifacts are written under ignored paths in `games/artifacts/test-results/` and `games/artifacts/playwright-report/`.
 
 ## Python utility tests
 

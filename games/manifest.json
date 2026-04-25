@@ -11,7 +11,7 @@
       "model": "gpt-5.5",
       "summary": "A browser-native arena FPS prototype for testing agent-built gameplay loops, visual clarity, and browser smoke automation.",
       "playUrl": "./fps-gauntlet/",
-      "screenshot": "./artifacts/fps-gauntlet-smoke.png",
+      "screenshot": "./artifacts/test-results/smoke-screenshots/fps-gauntlet-smoke.png",
       "testCommand": "npm test",
       "scorecard": {
         "gameplay": null,

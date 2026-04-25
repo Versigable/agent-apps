@@ -83,6 +83,7 @@
 - `npm install`
 - `npx playwright install chromium` if needed
 - `npm test`
+- `npm run test:ci` in fresh/CI environments where Playwright browsers may not be installed
 - `npm run test:headed` only if debugging locally
 - `/home/merquery/bin/agent-apps-commit merquery "feat: add agent game arcade and fps gauntlet" <files>`
 

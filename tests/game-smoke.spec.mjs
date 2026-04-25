@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs/promises';
 
+const smokeScreenshotDir = 'games/artifacts/test-results/smoke-screenshots';
+
 async function collectConsoleErrors(page) {
   const errors = [];
   page.on('console', (message) => {
@@ -10,6 +12,11 @@ async function collectConsoleErrors(page) {
   return errors;
 }
 
+async function saveSmokeScreenshot(page, filename) {
+  await fs.mkdir(smokeScreenshotDir, { recursive: true });
+  await page.screenshot({ path: `${smokeScreenshotDir}/${filename}`, fullPage: true });
+}
+
 test('agent game arcade loads manifest and exposes fps gauntlet', async ({ page }) => {
   const errors = await collectConsoleErrors(page);
   await page.goto('/games/arcade/');
@@ -17,7 +24,7 @@ test('agent game arcade loads manifest and exposes fps gauntlet', async ({ page 
   await expect(page.getByTestId('game-card-fps-gauntlet')).toBeVisible();
   await expect(page.getByRole('link', { name: /play neon breach/i })).toHaveAttribute('href', '../fps-gauntlet/');
   await expect(page.getByTestId('game-card-fps-gauntlet').getByText('npm test')).toBeVisible();
-  await page.screenshot({ path: 'games/artifacts/arcade-smoke.png', fullPage: true });
+  await saveSmokeScreenshot(page, 'arcade-smoke.png');
   expect(errors).toEqual([]);
 });
 
@@ -45,7 +52,7 @@ test('fps gauntlet starts, accepts controls, shoots drones, and updates hud', as
   expect(shots).toBeGreaterThan(0);
   expect(enemyCount).toBeGreaterThan(0);
   expect(health).toBeGreaterThan(0);
-  await page.screenshot({ path: 'games/artifacts/fps-gauntlet-smoke.png', fullPage: true });
+  await saveSmokeScreenshot(page, 'fps-gauntlet-smoke.png');
   expect(errors).toEqual([]);
 });
 

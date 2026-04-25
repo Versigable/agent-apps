@@ -29,7 +29,13 @@ From the repo root:
 npm test
 ```
 
-Playwright opens the arcade and this game, starts a run, presses movement/fire keys, checks HUD state, checks console errors, and captures screenshots under `games/artifacts/`.
+In a fresh/CI environment, use:
+
+```bash
+npm run test:ci
+```
+
+Playwright opens the arcade and this game, starts a run, presses movement/fire keys, checks HUD state, checks console errors, and captures screenshots under ignored artifact paths in `games/artifacts/test-results/`.
 
 ## Human scorecard
 

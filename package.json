@@ -6,6 +6,7 @@
   "scripts": {
     "serve:games": "python3 -m http.server 4173 --bind 127.0.0.1",
     "test": "playwright test",
+    "test:ci": "playwright install chromium && playwright test",
     "test:headed": "playwright test --headed",
     "test:report": "playwright show-report"
   },

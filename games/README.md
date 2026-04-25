@@ -39,7 +39,7 @@ The Playwright smoke tests verify:
 - game cards render with play links and scorecard metadata
 - Neon Breach loads without console errors
 - the game can start, accept movement/fire input, spawn enemies, and update HUD state
-- screenshots are captured to `games/artifacts/`
+- screenshots are captured to ignored paths in `games/artifacts/test-results/`
 
 ## Registering future games
 
