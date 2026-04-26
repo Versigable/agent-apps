@@ -1,0 +1,17 @@
+[Unit]
+Description=Agent Apps internal homelab preview service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/merquery/repos/agent-apps
+Environment=PREVIEW_HOST=0.0.0.0
+Environment=PREVIEW_PORT=4173
+Environment=PREVIEW_PUBLIC_URL=http://100.104.27.125:4173
+ExecStart=/usr/bin/env npm run serve:preview
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

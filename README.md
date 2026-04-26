@@ -43,6 +43,45 @@ npm run test:ci
 
 Generated Playwright artifacts are written under ignored paths in `games/artifacts/test-results/` and `games/artifacts/playwright-report/`.
 
+
+## One-click internal preview
+
+The Agent Game Arcade can run as a homelab/Tailscale preview service on OpenClaw:
+
+```bash
+npm run serve:preview
+# health check
+npm run preview:health
+```
+
+Internal preview URL:
+
+```text
+http://100.104.27.125:4173/games/arcade/
+```
+
+For boot-persistent hosting as the `merquery` user:
+
+```bash
+scripts/install-preview-service.sh
+```
+
+The tracked user unit lives at `deploy/systemd/user/agent-apps-preview.service`.
+
+## Video artifact workflow
+
+Capture a 10-second automated gameplay proof for Neon Breach:
+
+```bash
+npm run artifacts:video
+```
+
+The workflow starts/uses the preview service, records browser gameplay, and writes ignored artifacts under:
+
+- `games/artifacts/videos/fps-gauntlet-latest.webm`
+- `games/artifacts/test-results/smoke-screenshots/fps-gauntlet-latest.png`
+- `games/artifacts/latest-run.json`
+
 ## Python utility tests
 
 ```bash

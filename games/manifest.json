@@ -33,7 +33,32 @@
         "Add weapon pickups and enemy variants.",
         "Record automated 10-second gameplay videos in CI.",
         "Add per-commit model/agent comparison rows."
-      ]
+      ],
+      "previewPath": "/games/fps-gauntlet/",
+      "previewUrl": "http://100.104.27.125:4173/games/fps-gauntlet/",
+      "arcadeUrl": "http://100.104.27.125:4173/games/arcade/",
+      "artifactCommand": "npm run artifacts:video",
+      "artifacts": {
+        "latestScreenshot": "./artifacts/test-results/smoke-screenshots/fps-gauntlet-latest.png",
+        "latestVideo": "./artifacts/videos/fps-gauntlet-latest.webm",
+        "latestSummary": "./artifacts/latest-run.json"
+      }
     }
-  ]
+  ],
+  "previewService": {
+    "name": "agent-apps-preview",
+    "bindHost": "0.0.0.0",
+    "port": 4173,
+    "publicBaseUrl": "http://100.104.27.125:4173",
+    "arcadePath": "/games/arcade/",
+    "healthPath": "/healthz",
+    "systemdUserUnit": "deploy/systemd/user/agent-apps-preview.service"
+  },
+  "artifactWorkflow": {
+    "screenshotDir": "games/artifacts/test-results/smoke-screenshots",
+    "videoDir": "games/artifacts/videos",
+    "latestSummary": "games/artifacts/latest-run.json",
+    "videoCommand": "npm run artifacts:video",
+    "testCommand": "npm test"
+  }
 }

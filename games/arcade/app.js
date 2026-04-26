@@ -12,6 +12,18 @@ function checklistItems(items) {
   return (items ?? []).map((item) => `<li>${item}</li>`).join('');
 }
 
+function artifactLinks(game) {
+  if (!game.artifacts) return '';
+  const links = [];
+  if (game.artifacts.latestVideo) {
+    links.push(`<a href="${game.artifacts.latestVideo.replace(/^\.\//, '../')}">Latest video artifact</a>`);
+  }
+  if (game.artifacts.latestSummary) {
+    links.push(`<a href="${game.artifacts.latestSummary.replace(/^\.\//, '../')}">Latest run summary</a>`);
+  }
+  return links.length ? `<p class="meta artifact-links"><strong>Artifacts:</strong> ${links.join(' · ')}</p>` : '';
+}
+
 function renderGame(game) {
   const card = document.createElement('article');
   card.className = 'game-card';
@@ -28,8 +40,11 @@ function renderGame(game) {
     </div>
     <div class="card-actions">
       <a class="button" href="${game.playUrl.replace(/^\.\//, '../')}" aria-label="Play ${game.title}">Play ${game.title}</a>
+      ${game.previewUrl ? `<a class="button secondary" href="${game.previewUrl}" aria-label="One-click internal preview for ${game.title}">One-click internal preview</a>` : ''}
     </div>
     <p class="meta"><strong>Automated test:</strong> <code>${game.testCommand}</code></p>
+    ${game.artifactCommand ? `<p class="meta"><strong>Video workflow:</strong> <code>${game.artifactCommand}</code></p>` : ''}
+    ${artifactLinks(game)}
     <h4>Manual scorecard</h4>
     <ul class="scorecard">${scorecardItems(game.scorecard)}</ul>
     <h4>Manual checklist</h4>

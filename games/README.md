@@ -41,6 +41,46 @@ The Playwright smoke tests verify:
 - the game can start, accept movement/fire input, spawn enemies, and update HUD state
 - screenshots are captured to ignored paths in `games/artifacts/test-results/`
 
+
+## One-click homelab preview
+
+Run the internal preview service from the repo root:
+
+```bash
+npm run serve:preview
+```
+
+Open the arcade from inside the homelab/Tailscale network:
+
+```text
+http://100.104.27.125:4173/games/arcade/
+```
+
+The arcade renders a one-click internal preview link for each game that has `previewUrl` metadata in `games/manifest.json`. The service also exposes:
+
+- `GET /healthz` for health checks
+- `GET /__preview/manifest` for resolved preview metadata
+
+Install the persistent user service with:
+
+```bash
+scripts/install-preview-service.sh
+```
+
+## Video artifacts
+
+Capture a fresh automated gameplay artifact:
+
+```bash
+npm run artifacts:video
+```
+
+Outputs are intentionally ignored by Git:
+
+- `games/artifacts/videos/fps-gauntlet-latest.webm`
+- `games/artifacts/test-results/smoke-screenshots/fps-gauntlet-latest.png`
+- `games/artifacts/latest-run.json`
+
 ## Registering future games
 
 1. Add the game under `games/<kebab-case-id>/`.
@@ -75,7 +115,7 @@ Use 0–10 for each category:
 
 ## Near-term roadmap
 
-- GitLab Pages or lightweight preview server for one-click Discord testing.
-- Automated video capture for each game smoke test.
+- Keep the internal preview service running via the tracked user systemd unit.
+- Promote selected previews to GitLab Pages if public sharing becomes useful.
 - Per-commit arcade metadata: commit hash, agent, model, pass/fail, screenshot.
 - Comparative benchmark prompts inspired by Alex Finn's FPS/city/music visualizer gauntlets.
