@@ -1,18 +1,21 @@
 import { defineConfig } from '@playwright/test';
 
+const previewTestPort = Number(process.env.PLAYWRIGHT_PREVIEW_PORT || 4174);
+const previewBaseUrl = `http://127.0.0.1:${previewTestPort}`;
+
 export default defineConfig({
   testDir: './tests',
   timeout: 45_000,
   expect: { timeout: 10_000 },
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: previewBaseUrl,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure'
   },
   webServer: {
-    command: 'npm run serve:games',
-    url: 'http://127.0.0.1:4173/games/arcade/',
+    command: `PREVIEW_HOST=127.0.0.1 PREVIEW_PORT=${previewTestPort} npm run serve:games`,
+    url: `${previewBaseUrl}/games/arcade/`,
     reuseExistingServer: !process.env.CI,
     timeout: 10_000
   },
