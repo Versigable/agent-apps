@@ -21,9 +21,15 @@ test('agent game arcade loads manifest and exposes fps gauntlet', async ({ page 
   const errors = await collectConsoleErrors(page);
   await page.goto('/games/arcade/');
   await expect(page.getByRole('heading', { name: 'Agent Game Arcade' })).toBeVisible();
-  await expect(page.getByTestId('game-card-fps-gauntlet')).toBeVisible();
+  const fpsCard = page.getByTestId('game-card-fps-gauntlet');
+  await expect(fpsCard).toBeVisible();
   await expect(page.getByRole('link', { name: /play neon breach/i })).toHaveAttribute('href', '../fps-gauntlet/');
-  await expect(page.getByTestId('game-card-fps-gauntlet').getByText('npm test')).toBeVisible();
+  await expect(fpsCard.getByText('npm test')).toBeVisible();
+  await expect(fpsCard.getByText('Gameplay', { exact: true })).toBeVisible();
+  await expect(fpsCard.locator('.score-rating', { hasText: '7/10' }).first()).toBeVisible();
+  await expect(fpsCard.getByText(/Solid wave-survival loop/)).toBeVisible();
+  await expect(fpsCard.getByText('Agent self-test quality')).toBeVisible();
+  await expect(fpsCard.getByText(/Smoke tests cover arcade discovery/)).toBeVisible();
   await saveSmokeScreenshot(page, 'arcade-smoke.png');
   expect(errors).toEqual([]);
 });
@@ -69,4 +75,24 @@ test('manifest is valid and has required arcade metadata', async () => {
     testCommand: 'npm test'
   });
   expect(fps.manualChecklist.length).toBeGreaterThanOrEqual(5);
+  expect(fps.scorecardUrl).toBe('./scorecards/fps-gauntlet.json');
+
+  const scorecard = JSON.parse(await fs.readFile('games/scorecards/fps-gauntlet.json', 'utf8'));
+  expect(scorecard).toMatchObject({
+    schemaVersion: 1,
+    gameId: 'fps-gauntlet',
+    ratings: {
+      gameplay: { rating: 7 },
+      controls: { rating: 8 },
+      visualClarity: { rating: 7 },
+      performance: { rating: 8 },
+      replayability: { rating: 6 },
+      agentSelfTestQuality: { rating: 8 }
+    }
+  });
+  for (const entry of Object.values(scorecard.ratings)) {
+    expect(entry.rating).toBeGreaterThanOrEqual(0);
+    expect(entry.rating).toBeLessThanOrEqual(10);
+    expect(entry.note.length).toBeGreaterThan(0);
+  }
 });

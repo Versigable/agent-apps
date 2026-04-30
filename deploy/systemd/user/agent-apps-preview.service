@@ -8,7 +8,7 @@ Type=simple
 WorkingDirectory=/home/merquery/repos/agent-apps
 Environment=PREVIEW_HOST=0.0.0.0
 Environment=PREVIEW_PORT=4173
-Environment=PREVIEW_PUBLIC_URL=http://100.104.27.125:4173
+Environment=PREVIEW_PUBLIC_URL=https://game-preview.ninjaprivacy.org
 ExecStart=/usr/bin/env npm run serve:preview
 Restart=on-failure
 RestartSec=5

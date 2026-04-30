@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "gameId": "fps-gauntlet",
+  "updatedAt": "2026-04-30",
+  "ratings": {
+    "gameplay": {
+      "rating": 7,
+      "note": "Solid wave-survival loop with clear shooting feedback, still early in enemy variety."
+    },
+    "controls": {
+      "rating": 8,
+      "note": "Responsive WASD, mouse aim, and keyboard-fire fallback work well in browser tests."
+    },
+    "visualClarity": {
+      "rating": 7,
+      "note": "Neon arena and HUD are readable, though effects can get busy during close fights."
+    },
+    "performance": {
+      "rating": 8,
+      "note": "Lightweight prototype runs smoothly in the Playwright smoke path."
+    },
+    "replayability": {
+      "rating": 6,
+      "note": "Score chasing and waves invite retries, but progression is still limited."
+    },
+    "agentSelfTestQuality": {
+      "rating": 8,
+      "note": "Smoke tests cover arcade discovery, startup, movement, firing, enemies, HUD, and artifacts."
+    }
+  }
+}
