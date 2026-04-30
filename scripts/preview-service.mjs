@@ -51,7 +51,6 @@ function safeStaticPath(urlPath) {
 async function serveStatic(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   let pathname = url.pathname;
-  if (pathname === '/') pathname = '/games/arcade/';
   let filePath = safeStaticPath(pathname);
   if (!filePath) return sendJson(res, 403, { error: 'forbidden' });
 
@@ -73,6 +72,10 @@ async function serveStatic(req, res) {
 
 async function handler(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (url.pathname === '/') {
+    res.writeHead(302, { location: '/games/arcade/' });
+    return res.end();
+  }
   if (url.pathname === '/healthz') {
     return sendJson(res, 200, {
       ok: true,
