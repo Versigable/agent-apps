@@ -3,12 +3,14 @@ stages:
 
 python-tests:
   stage: test
+  tags: [agent-dev]
   image: ghcr.io/astral-sh/uv:python3.11-bookworm-slim
   script:
     - uv run pytest
 
 browser-game-smoke:
   stage: test
+  tags: [agent-dev]
   image: mcr.microsoft.com/playwright:v1.59.1-noble
   script:
     - npm ci
