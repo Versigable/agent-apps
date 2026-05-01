@@ -45,8 +45,9 @@ test('fps gauntlet starts, accepts controls, shoots drones, and updates hud', as
   await expect(page.locator('#game-canvas')).toBeVisible();
   await expect(page.getByTestId('score')).toHaveText('0');
   await expect(page.getByTestId('radar')).toBeVisible();
-  await expect(page.getByTestId('threat-count')).toHaveText('7');
+  await expect(page.getByTestId('threat-count')).toHaveText('8');
   await expect(page.locator('#weapon-status')).toHaveText('READY');
+  await expect(page.getByTestId('high-score')).toHaveText(/\d+/);
 
   await page.getByRole('button', { name: /start breach/i }).click();
   await expect(page.locator('#game-root')).toHaveAttribute('data-state', 'running');
@@ -61,12 +62,27 @@ test('fps gauntlet starts, accepts controls, shoots drones, and updates hud', as
 
   const shots = Number(await page.locator('#game-root').getAttribute('data-shots-fired'));
   const jumps = Number(await page.locator('#game-root').getAttribute('data-jumps'));
+  await page.evaluate(() => window.__neonBreachTest.clearWave());
+  await expect(page.locator('#game-root')).toHaveAttribute('data-wave-status', 'cleared');
+  await expect(page.getByTestId('wave-banner')).toContainText(/wave 1 clear/i);
+  await expect(page.locator('#game-root')).toHaveAttribute('data-waves-cleared', '1');
+  await expect(page.getByTestId('kills')).toHaveText(/\d+/);
+  await expect(page.getByTestId('shots-fired')).toHaveText(String(shots));
+  await page.evaluate(() => window.__neonBreachTest.advanceToNextWave());
+  await expect(page.locator('#game-root')).toHaveAttribute('data-wave-status', 'intro');
+  await expect(page.getByTestId('wave')).toHaveText('2');
+
   const enemyCount = Number(await page.locator('#game-root').getAttribute('data-enemy-count'));
+  const accuracy = Number(await page.locator('#game-root').getAttribute('data-accuracy'));
+  const highScore = Number(await page.locator('#game-root').getAttribute('data-high-score'));
   const health = Number(await page.getByTestId('health').textContent());
 
   expect(shots).toBeGreaterThan(0);
   expect(jumps).toBeGreaterThan(0);
   expect(enemyCount).toBeGreaterThan(0);
+  expect(accuracy).toBeGreaterThanOrEqual(0);
+  expect(highScore).toBeGreaterThan(0);
+  await expect(page.locator('#game-root')).toHaveAttribute('data-run-summary', /Score \d+ · Waves 1 · Kills \d+ · Accuracy \d+%/);
   expect(health).toBeGreaterThan(0);
   await saveSmokeScreenshot(page, 'fps-gauntlet-smoke.png');
   expect(errors).toEqual([]);

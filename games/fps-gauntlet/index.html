@@ -10,25 +10,31 @@
     </script>
   </head>
   <body>
-    <div id="game-root" data-state="idle" data-shots-fired="0" data-enemy-count="0" data-jumps="0">
+    <div id="game-root" data-state="idle" data-shots-fired="0" data-shots-hit="0" data-kills="0" data-accuracy="0" data-enemy-count="0" data-jumps="0" data-waves-cleared="0" data-high-score="0" data-wave-status="idle">
       <canvas id="game-canvas" aria-label="Neon Breach game canvas"></canvas>
       <section id="hud" aria-label="Game HUD">
         <div class="hud-card hud-card--health"><span>Health</span><strong data-testid="health" id="health">100</strong><i id="health-bar"></i></div>
         <div class="hud-card"><span>Score</span><strong data-testid="score" id="score">0</strong></div>
         <div class="hud-card"><span>Wave</span><strong data-testid="wave" id="wave">1</strong></div>
+        <div class="hud-card"><span>Accuracy</span><strong data-testid="accuracy" id="accuracy">0%</strong></div>
         <div class="hud-card hud-card--heat"><span>Heat</span><strong data-testid="heat" id="heat">0</strong><i id="heat-bar"></i></div>
       </section>
       <aside id="tactical-panel" aria-label="Tactical UI">
         <div class="panel-header"><span>Vault Radar</span><b id="threat-count" data-testid="threat-count">0</b></div>
         <div id="radar" data-testid="radar" aria-label="Enemy radar"><span class="radar-sweep"></span></div>
         <div class="weapon-readout"><span>Pulse Carbine</span><strong id="weapon-status">READY</strong></div>
+        <dl id="run-stats" aria-label="Run stats">
+          <div><dt>Kills</dt><dd id="kills" data-testid="kills">0</dd></div>
+          <div><dt>Shots</dt><dd id="shots-fired" data-testid="shots-fired">0</dd></div>
+          <div><dt>High</dt><dd id="high-score" data-testid="high-score">0</dd></div>
+        </dl>
       </aside>
       <section id="overlay" class="panel">
         <p class="eyebrow">FPS Gauntlet v0.2 UI Pass</p>
         <h1>Neon Breach</h1>
         <p>
-          Survive drone waves in a neon training vault. Watch the new radar, heat rail,
-          threat counter, and breach alerts while you strafe, sprint, and fire.
+          Survive escalating drone waves in a neon training vault. Chain wave clears,
+          track accuracy, and chase the local high score while you strafe, sprint, and fire.
         </p>
         <ul class="control-grid" aria-label="Controls">
           <li><kbd>WASD</kbd><span>move</span></li>
@@ -41,7 +47,9 @@
         <button id="start-button" type="button">Start Breach</button>
         <a href="../arcade/">Back to Agent Game Arcade</a>
       </section>
+      <section id="wave-banner" data-testid="wave-banner" aria-live="polite">Wave 1 Incoming</section>
       <section id="message" aria-live="polite"></section>
+      <section id="run-summary" data-testid="run-summary" aria-live="polite"></section>
       <section id="breach-flash" aria-hidden="true"></section>
       <section id="muzzle-flash" aria-hidden="true"></section>
       <section id="hit-marker" aria-hidden="true"></section>

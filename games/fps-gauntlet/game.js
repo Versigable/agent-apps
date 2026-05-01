@@ -5,6 +5,8 @@ const canvas = document.querySelector('#game-canvas');
 const startButton = document.querySelector('#start-button');
 const overlay = document.querySelector('#overlay');
 const message = document.querySelector('#message');
+const waveBanner = document.querySelector('#wave-banner');
+const runSummary = document.querySelector('#run-summary');
 const radar = document.querySelector('#radar');
 const threatCount = document.querySelector('#threat-count');
 const weaponStatus = document.querySelector('#weapon-status');
@@ -13,6 +15,10 @@ const hud = {
   score: document.querySelector('#score'),
   wave: document.querySelector('#wave'),
   heat: document.querySelector('#heat'),
+  accuracy: document.querySelector('#accuracy'),
+  kills: document.querySelector('#kills'),
+  shotsFired: document.querySelector('#shots-fired'),
+  highScore: document.querySelector('#high-score'),
   healthBar: document.querySelector('#health-bar'),
   heatBar: document.querySelector('#heat-bar')
 };
@@ -30,6 +36,13 @@ const state = {
   verticalVelocity: 0,
   grounded: true,
   jumps: 0,
+  hits: 0,
+  kills: 0,
+  wavesCleared: 0,
+  highScore: Number(localStorage.getItem('neon-breach-high-score') || '0'),
+  waveStatus: 'idle',
+  waveTimer: 0,
+  summary: '',
   keys: new Set(),
   enemies: [],
   projectiles: [],
@@ -88,6 +101,15 @@ function makeArena() {
 }
 makeArena();
 
+function spawnWave(wave = state.wave) {
+  state.waveStatus = 'intro';
+  state.waveTimer = 1.25;
+  root.dataset.waveStatus = state.waveStatus;
+  waveBanner.textContent = `Wave ${wave} Incoming`;
+  waveBanner.classList.add('visible');
+  for (let i = 0; i < 6 + wave * 2; i++) spawnEnemy(i);
+}
+
 function spawnEnemy(index = state.enemies.length) {
   const group = new THREE.Group();
   const body = new THREE.Mesh(
@@ -105,13 +127,16 @@ function spawnEnemy(index = state.enemies.length) {
 }
 
 function resetGame() {
-  state.health = 100; state.score = 0; state.wave = 1; state.heat = 0; state.shotsFired = 0; state.jumps = 0;
+  state.health = 100; state.score = 0; state.wave = 1; state.heat = 0; state.shotsFired = 0; state.jumps = 0; state.hits = 0; state.kills = 0; state.wavesCleared = 0; state.waveStatus = 'idle'; state.waveTimer = 0; state.summary = '';
   state.yaw = 0; state.pitch = 0; state.velocity.set(0, 0, 0); state.verticalVelocity = 0; state.grounded = true; camera.position.set(0, 1.7, 8);
   for (const enemy of state.enemies) world.remove(enemy);
   for (const projectile of state.projectiles) world.remove(projectile.mesh);
   for (const effect of state.effects) world.remove(effect.mesh);
   state.enemies = []; state.projectiles = []; state.effects = [];
-  for (let i = 0; i < 7; i++) spawnEnemy(i);
+  waveBanner.classList.remove('visible', 'cleared');
+  runSummary.classList.remove('visible');
+  runSummary.textContent = '';
+  spawnWave(1);
   updateHud();
 }
 
@@ -121,6 +146,8 @@ function startGame() {
   root.dataset.state = 'running';
   overlay.style.display = '';
   message.textContent = 'Breach live. Clear the drones.';
+  state.waveStatus = 'combat';
+  root.dataset.waveStatus = state.waveStatus;
   canvas.requestPointerLock?.();
   state.clock.getDelta();
 }
@@ -130,7 +157,13 @@ function endGame() {
   root.dataset.state = 'game-over';
   overlay.style.display = 'block';
   overlay.querySelector('h1').textContent = 'Breach Failed';
-  overlay.querySelector('p').textContent = `Final score ${state.score}. Restart and push the wave higher.`;
+  state.highScore = Math.max(state.highScore, state.score);
+  localStorage.setItem('neon-breach-high-score', String(state.highScore));
+  state.summary = summarizeRun();
+  root.dataset.runSummary = state.summary;
+  overlay.querySelector('p').textContent = `${state.summary}. Restart and push the wave higher.`;
+  runSummary.textContent = state.summary;
+  runSummary.classList.add('visible');
   startButton.textContent = 'Restart Breach';
   message.textContent = 'Drone swarm overran the vault.';
   document.exitPointerLock?.();
@@ -220,6 +253,10 @@ function updateHud() {
   hud.score.textContent = state.score;
   hud.wave.textContent = state.wave;
   hud.heat.textContent = Math.round(state.heat);
+  hud.accuracy.textContent = `${getAccuracy()}%`;
+  hud.kills.textContent = state.kills;
+  hud.shotsFired.textContent = state.shotsFired;
+  hud.highScore.textContent = state.highScore;
   hud.healthBar.style.transform = `scaleX(${healthPct})`;
   hud.heatBar.style.transform = `scaleX(${heatPct})`;
   threatCount.textContent = state.enemies.length;
@@ -228,6 +265,13 @@ function updateHud() {
   root.dataset.shotsFired = String(state.shotsFired);
   root.dataset.enemyCount = String(state.enemies.length);
   root.dataset.jumps = String(state.jumps);
+  root.dataset.shotsHit = String(state.hits);
+  root.dataset.kills = String(state.kills);
+  root.dataset.accuracy = String(getAccuracy());
+  root.dataset.wavesCleared = String(state.wavesCleared);
+  root.dataset.highScore = String(state.highScore);
+  root.dataset.waveStatus = state.waveStatus;
+  root.dataset.runSummary = state.summary || summarizeRun();
   renderRadar();
 }
 
@@ -254,6 +298,45 @@ function updateMovement(dt) {
   camera.rotation.x = state.pitch;
 }
 
+function getAccuracy() {
+  return state.shotsFired > 0 ? Math.round((state.hits / state.shotsFired) * 100) : 0;
+}
+
+function summarizeRun() {
+  return `Score ${state.score} · Waves ${state.wavesCleared} · Kills ${state.kills} · Accuracy ${getAccuracy()}%`;
+}
+
+function clearWave() {
+  if (!state.running || state.waveStatus === 'cleared') return;
+  state.wavesCleared += 1;
+  state.score += 100 + state.wave * 50;
+  state.highScore = Math.max(state.highScore, state.score);
+  localStorage.setItem('neon-breach-high-score', String(state.highScore));
+  state.waveStatus = 'cleared';
+  state.waveTimer = 1.55;
+  root.dataset.waveStatus = state.waveStatus;
+  waveBanner.textContent = `Wave ${state.wave} Clear · +${100 + state.wave * 50}`;
+  waveBanner.classList.add('visible', 'cleared');
+  message.textContent = `Wave ${state.wave} clear. Reloading breach gates.`;
+  spawnBurst(camera.position.clone().add(new THREE.Vector3(0, 0, -2).applyQuaternion(camera.quaternion)), 0x23e6ff, 18);
+  updateHud();
+}
+
+function advanceWaveTimers(dt) {
+  if (state.waveTimer <= 0) return;
+  state.waveTimer -= dt;
+  if (state.waveTimer > 0) return;
+  if (state.waveStatus === 'cleared') {
+    state.wave += 1;
+    message.textContent = `Wave ${state.wave}. Drones adapting.`;
+    spawnWave(state.wave);
+  } else if (state.waveStatus === 'intro') {
+    state.waveStatus = 'combat';
+    root.dataset.waveStatus = state.waveStatus;
+    waveBanner.classList.remove('visible', 'cleared');
+  }
+}
+
 function updateEnemies(dt) {
   const playerFlat = camera.position.clone(); playerFlat.y = 1.2;
   for (const enemy of [...state.enemies]) {
@@ -271,11 +354,7 @@ function updateEnemies(dt) {
       if (state.health <= 0) endGame();
     }
   }
-  if (state.enemies.length === 0 && state.running) {
-    state.wave += 1;
-    message.textContent = `Wave ${state.wave}. Drones adapting.`;
-    for (let i = 0; i < 6 + state.wave * 2; i++) spawnEnemy(i);
-  }
+  if (state.enemies.length === 0 && state.running) clearWave();
 }
 
 function updateProjectiles(dt) {
@@ -285,6 +364,7 @@ function updateProjectiles(dt) {
     for (const enemy of [...state.enemies]) {
       if (projectile.mesh.position.distanceTo(enemy.position) < 0.95) {
         enemy.userData.hp -= 1;
+        state.hits += 1;
         showDamage(enemy);
         world.remove(projectile.mesh);
         state.projectiles.splice(state.projectiles.indexOf(projectile), 1);
@@ -292,7 +372,9 @@ function updateProjectiles(dt) {
           spawnBurst(enemy.position, 0xff37df, 16);
           world.remove(enemy);
           state.enemies.splice(state.enemies.indexOf(enemy), 1);
+          state.kills += 1;
           state.score += 25;
+          state.highScore = Math.max(state.highScore, state.score);
           message.textContent = 'Drone neutralized +25';
         }
         break;
@@ -334,6 +416,7 @@ function animate() {
   if (state.running) {
     state.heat = Math.max(0, state.heat - dt * 18);
     updateMovement(dt);
+    advanceWaveTimers(dt);
     updateEnemies(dt);
     updateProjectiles(dt);
     updateEffects(dt);
@@ -357,6 +440,27 @@ window.addEventListener('mousemove', (event) => {
   state.yaw -= event.movementX * 0.0025;
   state.pitch = THREE.MathUtils.clamp(state.pitch - event.movementY * 0.0025, -1.2, 1.2);
 });
+window.__neonBreachTest = {
+  summarizeRun,
+  advanceToNextWave: () => {
+    if (state.waveStatus !== 'cleared') return;
+    state.waveTimer = 0;
+    state.wave += 1;
+    message.textContent = `Wave ${state.wave}. Drones adapting.`;
+    spawnWave(state.wave);
+    updateHud();
+  },
+  clearWave: () => {
+    for (const enemy of [...state.enemies]) {
+      spawnBurst(enemy.position, 0xff37df, 4);
+      world.remove(enemy);
+    }
+    state.enemies = [];
+    clearWave();
+  },
+  state
+};
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();

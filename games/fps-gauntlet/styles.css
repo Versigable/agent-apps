@@ -267,6 +267,60 @@ kbd { border:1px solid rgba(255,255,255,.25); border-bottom-width:3px; border-ra
 #game-root[data-state="running"] #overlay { display:none; }
 .damage-pop { position:fixed; pointer-events:none; z-index:7; color:var(--green); font-weight:900; text-shadow:0 0 10px var(--green); animation:float .65s ease-out forwards; }
 @keyframes float { from { opacity:1; transform:translateY(0) scale(1); } to { opacity:0; transform:translateY(-38px) scale(1.25); } }
+#run-stats {
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:8px;
+  margin:12px 0 0;
+}
+#run-stats div {
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:12px;
+  padding:7px 4px;
+  background:rgba(255,255,255,.04);
+}
+#run-stats dt { color:#92aabe; font-size:.58rem; text-transform:uppercase; letter-spacing:.12em; }
+#run-stats dd { margin:3px 0 0; color:var(--green); font-weight:900; }
+#wave-banner {
+  position:fixed;
+  top:116px;
+  left:50%;
+  z-index:6;
+  min-width:min(520px, calc(100% - 32px));
+  transform:translate(-50%, -18px) scale(.96);
+  opacity:0;
+  pointer-events:none;
+  border:1px solid rgba(118,255,143,.45);
+  border-radius:999px;
+  padding:13px 24px;
+  text-align:center;
+  color:white;
+  font-weight:1000;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  background:linear-gradient(90deg, rgba(35,230,255,.22), rgba(118,255,143,.18), rgba(255,55,223,.2));
+  box-shadow:0 0 40px rgba(35,230,255,.22), inset 0 0 28px rgba(255,255,255,.08);
+  transition:opacity .24s ease, transform .24s ease;
+}
+#wave-banner.visible { opacity:1; transform:translate(-50%, 0) scale(1); }
+#wave-banner.cleared { border-color:rgba(255,209,102,.65); box-shadow:0 0 52px rgba(255,209,102,.22); }
+#run-summary {
+  position:fixed;
+  left:50%;
+  bottom:78px;
+  z-index:7;
+  transform:translateX(-50%);
+  opacity:0;
+  pointer-events:none;
+  border:1px solid rgba(255,209,102,.35);
+  border-radius:18px;
+  padding:12px 18px;
+  color:#fff3bd;
+  background:rgba(28,18,2,.76);
+  box-shadow:0 0 32px rgba(255,209,102,.16);
+}
+#run-summary.visible { opacity:1; }
+
 @keyframes sheen { to { transform:translateX(130%); } }
 @keyframes sweep { to { transform:rotate(360deg); } }
 @keyframes breach { from { opacity:1; } to { opacity:0; } }
