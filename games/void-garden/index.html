@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Void Garden</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main id="game-root" data-state="idle" data-petals-grown="0" data-specimens="0">
+      <canvas id="garden-stage" width="1280" height="720" aria-label="Void Garden playable stage"></canvas>
+      <section id="hud" aria-label="Void Garden HUD">
+        <div><span>Specimens</span><strong id="specimens" data-testid="specimens">0</strong></div>
+        <div><span>Weirdness</span><strong id="weirdness" data-testid="weirdness">0</strong></div>
+        <div><span>Heartbeat</span><strong id="heartbeat" data-testid="heartbeat">0</strong></div>
+      </section>
+      <section id="overlay" class="panel">
+        <p class="eyebrow">weird creative wildcard</p>
+        <h1>Void Garden</h1>
+        <p>
+          Tend a greenhouse that grows impossible organs. Move the cursor to lure spores,
+          press <kbd>F</kbd> to feed them, and <kbd>Space</kbd> to blink the moon-mouth.
+        </p>
+        <button id="start-button" type="button">Open the Greenhouse</button>
+        <a href="../arcade/">Back to Agent Game Arcade</a>
+      </section>
+      <aside id="whisper" data-testid="whisper" aria-live="polite">The garden is sleeping under your cursor.</aside>
+      <ol id="specimen-log" aria-label="Specimen log"></ol>
+    </main>
+    <script src="./game.js" type="module"></script>
+  </body>
+</html>

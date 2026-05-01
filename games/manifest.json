@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-04-25",
+  "updatedAt": "2026-04-30",
   "games": [
     {
       "id": "fps-gauntlet",
@@ -42,6 +42,49 @@
       "artifacts": {
         "latestScreenshot": "./artifacts/test-results/smoke-screenshots/fps-gauntlet-latest.png",
         "latestVideo": "./artifacts/videos/fps-gauntlet-latest.webm",
+        "latestSummary": "./artifacts/latest-run.json"
+      }
+    },
+    {
+      "id": "void-garden",
+      "title": "Void Garden",
+      "type": "weird-creative-wildcard",
+      "status": "prototype",
+      "agent": "Merquery",
+      "model": "gpt-5.5",
+      "summary": "A cursor-haunted greenhouse toy where spores orbit, a moon-mouth blinks, and the specimen log mutates when you feed the void.",
+      "playUrl": "./void-garden/",
+      "screenshot": "./artifacts/test-results/smoke-screenshots/void-garden-smoke.png",
+      "testCommand": "npm test",
+      "scorecardUrl": "./scorecards/void-garden.json",
+      "scorecard": {
+        "gameplay": null,
+        "controls": null,
+        "visualClarity": null,
+        "performance": null,
+        "replayability": null,
+        "agentSelfTest": null
+      },
+      "manualChecklist": [
+        "Open the greenhouse and confirm the overlay disappears.",
+        "Move the cursor and confirm the sigil tracks pointer position.",
+        "Press F and confirm petals/specimens/weirdness increase.",
+        "Press Space and confirm the whisper text changes.",
+        "Watch spores drift toward the cursor without frame drops.",
+        "Confirm the specimen log remains readable over the animated canvas."
+      ],
+      "nextIdeas": [
+        "Add timed rituals with scoring and failure states.",
+        "Let specimens combine into named monstrosities.",
+        "Add generated synth chirps for feeding and moon blinks."
+      ],
+      "previewPath": "/games/void-garden/",
+      "previewUrl": "https://game-preview.ninjaprivacy.org/games/void-garden/",
+      "arcadeUrl": "https://game-preview.ninjaprivacy.org/games/arcade/",
+      "artifactCommand": "npm run artifacts:video -- void-garden",
+      "artifacts": {
+        "latestScreenshot": "./artifacts/test-results/smoke-screenshots/void-garden-latest.png",
+        "latestVideo": "./artifacts/videos/void-garden-latest.webm",
         "latestSummary": "./artifacts/latest-run.json"
       }
     }

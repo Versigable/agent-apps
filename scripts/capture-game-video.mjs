@@ -95,7 +95,7 @@ async function main() {
     const previewPath = game.previewPath || game.playUrl.replace(/^\./, '/games');
     const previewUrl = `${baseUrl}${previewPath}`;
     await page.goto(previewUrl, { waitUntil: 'networkidle' });
-    const startButton = page.getByRole('button', { name: /start breach|start|play/i });
+    const startButton = page.getByRole('button', { name: /start breach|open the greenhouse|start|play/i });
     if (await startButton.count()) await startButton.first().click();
     await page.keyboard.down('KeyW');
     await page.keyboard.down('KeyD');

@@ -11,7 +11,7 @@
     "test:report": "playwright show-report",
     "serve:preview": "node scripts/preview-service.mjs",
     "preview:health": "node scripts/preview-service.mjs --healthcheck",
-    "artifacts:video": "node scripts/capture-game-video.mjs fps-gauntlet"
+    "artifacts:video": "node scripts/capture-game-video.mjs"
   },
   "dependencies": {
     "three": "^0.182.0"

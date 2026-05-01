@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "gameId": "void-garden",
+  "title": "Void Garden",
+  "ratings": {
+    "gameplay": {
+      "rating": 6,
+      "note": "Short toy-like loop: feed spores, blink the moon-mouth, and chase escalating specimen text."
+    },
+    "controls": {
+      "rating": 7,
+      "note": "Mouse lure plus F/Space inputs are easy to test and easy to discover from the overlay."
+    },
+    "visualClarity": {
+      "rating": 8,
+      "note": "Readable neon HUD, high-contrast cursor sigil, and simple spore silhouettes keep the weirdness legible."
+    },
+    "performance": {
+      "rating": 9,
+      "note": "Canvas-only 2D effects with capped bloom/spore counts should stay lightweight."
+    },
+    "replayability": {
+      "rating": 6,
+      "note": "Fun as a bizarre arcade curiosity, though it needs scoring goals for longer sessions."
+    },
+    "agentSelfTestQuality": {
+      "rating": 8,
+      "note": "Smoke coverage checks loading, start flow, input handling, HUD mutation, whisper updates, and screenshots."
+    }
+  }
+}

@@ -11,7 +11,7 @@ test('package exposes one-click preview service and video artifact commands', as
   expect(pkg.scripts).toMatchObject({
     'serve:preview': 'node scripts/preview-service.mjs',
     'preview:health': 'node scripts/preview-service.mjs --healthcheck',
-    'artifacts:video': 'node scripts/capture-game-video.mjs fps-gauntlet'
+    'artifacts:video': 'node scripts/capture-game-video.mjs'
   });
 });
 
@@ -36,6 +36,14 @@ test('manifest advertises internal preview and artifact workflow metadata', asyn
   expect(fps.artifacts.latestVideo).toBe('./artifacts/videos/fps-gauntlet-latest.webm');
   expect(fps.artifacts.latestScreenshot).toBe('./artifacts/test-results/smoke-screenshots/fps-gauntlet-latest.png');
   expect(fps.artifacts.latestSummary).toBe('./artifacts/latest-run.json');
+
+  const voidGarden = manifest.games.find((game) => game.id === 'void-garden');
+  expect(voidGarden.previewPath).toBe('/games/void-garden/');
+  expect(voidGarden.previewUrl).toContain('/games/void-garden/');
+  expect(voidGarden.artifactCommand).toBe('npm run artifacts:video -- void-garden');
+  expect(voidGarden.artifacts.latestVideo).toBe('./artifacts/videos/void-garden-latest.webm');
+  expect(voidGarden.artifacts.latestScreenshot).toBe('./artifacts/test-results/smoke-screenshots/void-garden-latest.png');
+  expect(voidGarden.artifacts.latestSummary).toBe('./artifacts/latest-run.json');
 });
 
 test('preview service exposes health and denies repo-private paths', async ({ request }) => {
