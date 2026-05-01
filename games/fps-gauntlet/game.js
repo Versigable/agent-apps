@@ -50,6 +50,13 @@ const state = {
   effects: [],
   lastShot: 0,
   lastHit: 0,
+  muzzleFlashes: 0,
+  hitMarkers: 0,
+  damageFlashes: 0,
+  lastShotFeedbackAt: 0,
+  lastHitMarkerAt: 0,
+  lastDamageAt: 0,
+  feedbackTimers: new Map(),
   clock: new THREE.Clock()
 };
 
@@ -292,6 +299,11 @@ function spawnEnemy(index = state.enemies.length, forcedType = null) {
 
 function resetGame() {
   state.health = 100; state.score = 0; state.wave = 1; state.heat = 0; state.shotsFired = 0; state.jumps = 0; state.hits = 0; state.kills = 0; state.wavesCleared = 0; state.waveStatus = 'idle'; state.waveTimer = 0; state.summary = '';
+  state.muzzleFlashes = 0; state.hitMarkers = 0; state.damageFlashes = 0; state.lastShotFeedbackAt = 0; state.lastHitMarkerAt = 0; state.lastDamageAt = 0;
+  for (const timer of state.feedbackTimers.values()) clearTimeout(timer);
+  state.feedbackTimers.clear();
+  root.dataset.muzzleFlashActive = 'false'; root.dataset.hitMarkerActive = 'false'; root.dataset.damageFlashActive = 'false';
+  root.classList.remove('firing', 'recoil', 'hit-confirm', 'hit', 'damage-alert');
   state.yaw = 0; state.pitch = 0; state.velocity.set(0, 0, 0); state.verticalVelocity = 0; state.grounded = true; camera.position.set(0, 1.7, 8);
   for (const enemy of state.enemies) world.remove(enemy);
   for (const projectile of state.projectiles) world.remove(projectile.mesh);
@@ -339,6 +351,53 @@ function pulseClass(className) {
   root.classList.add(className);
 }
 
+function markFeedbackActive(datasetKey, duration = 180) {
+  root.dataset[datasetKey] = 'true';
+  if (state.feedbackTimers.has(datasetKey)) clearTimeout(state.feedbackTimers.get(datasetKey));
+  state.feedbackTimers.set(datasetKey, setTimeout(() => {
+    root.dataset[datasetKey] = 'false';
+    state.feedbackTimers.delete(datasetKey);
+  }, duration));
+}
+
+function triggerMuzzleFeedback() {
+  state.muzzleFlashes += 1;
+  state.lastShotFeedbackAt = Math.round(performance.now());
+  root.dataset.muzzleFlashes = String(state.muzzleFlashes);
+  root.dataset.lastShotFeedbackAt = String(state.lastShotFeedbackAt);
+  markFeedbackActive('muzzleFlashActive', 160);
+  pulseClass('firing');
+  pulseClass('recoil');
+}
+
+function triggerHitMarkerFeedback() {
+  state.hitMarkers += 1;
+  state.lastHitMarkerAt = Math.round(performance.now());
+  root.dataset.hitMarkers = String(state.hitMarkers);
+  root.dataset.lastHitMarkerAt = String(state.lastHitMarkerAt);
+  markFeedbackActive('hitMarkerActive', 260);
+  pulseClass('hit-confirm');
+}
+
+function triggerDamageFeedback() {
+  state.damageFlashes += 1;
+  state.lastDamageAt = Math.round(performance.now());
+  root.dataset.damageFlashes = String(state.damageFlashes);
+  root.dataset.lastDamageAt = String(state.lastDamageAt);
+  markFeedbackActive('damageFlashActive', 360);
+  pulseClass('hit');
+  pulseClass('damage-alert');
+}
+
+function applyPlayerDamage(amount, label = 'Drone') {
+  if (!state.running || amount <= 0) return;
+  state.health = Math.max(0, state.health - amount);
+  message.textContent = `${label} breach -${amount}`;
+  triggerDamageFeedback();
+  updateHud();
+  if (state.health <= 0) endGame();
+}
+
 function shoot() {
   if (!state.running) return;
   const now = performance.now();
@@ -346,8 +405,7 @@ function shoot() {
   state.lastShot = now;
   state.shotsFired += 1;
   state.heat = Math.min(100, state.heat + 14);
-  pulseClass('firing');
-  pulseClass('recoil');
+  triggerMuzzleFeedback();
   camera.position.add(new THREE.Vector3(0, 0, 0.055).applyQuaternion(camera.quaternion));
 
   const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
@@ -385,13 +443,13 @@ function showDamage(enemy) {
   pop.style.left = `${(projected.x * 0.5 + 0.5) * window.innerWidth}px`;
   pop.style.top = `${(-projected.y * 0.5 + 0.5) * window.innerHeight}px`;
   document.body.append(pop);
-  pulseClass('hit-confirm');
+  triggerHitMarkerFeedback();
   spawnBurst(enemy.position, 0x76ff8f, 7);
   setTimeout(() => pop.remove(), 700);
 }
 
 function flashBreach() {
-  pulseClass('hit');
+  triggerDamageFeedback();
 }
 
 function renderRadar() {
@@ -426,6 +484,7 @@ function updateHud() {
   threatCount.textContent = state.enemies.length;
   weaponStatus.textContent = state.heat > 92 ? 'VENTING' : state.heat > 70 ? 'HOT' : 'READY';
   weaponStatus.classList.toggle('overheat', state.heat > 70);
+  root.dataset.health = String(Math.max(0, Math.round(state.health)));
   root.dataset.shotsFired = String(state.shotsFired);
   root.dataset.enemyCount = String(state.enemies.length);
   root.dataset.enemyTypes = [...new Set(state.enemies.map((enemy) => enemy.userData.type || 'skitter'))].sort().join(',');
@@ -438,6 +497,12 @@ function updateHud() {
   root.dataset.highScore = String(state.highScore);
   root.dataset.waveStatus = state.waveStatus;
   root.dataset.runSummary = state.summary || summarizeRun();
+  root.dataset.muzzleFlashes = String(state.muzzleFlashes);
+  root.dataset.hitMarkers = String(state.hitMarkers);
+  root.dataset.damageFlashes = String(state.damageFlashes);
+  root.dataset.lastShotFeedbackAt = String(state.lastShotFeedbackAt);
+  root.dataset.lastHitMarkerAt = String(state.lastHitMarkerAt);
+  root.dataset.lastDamageAt = String(state.lastDamageAt);
   renderRadar();
 }
 
@@ -515,10 +580,7 @@ function updateEnemies(dt) {
     enemy.position.y = 1.2 + Math.sin(performance.now() / (enemy.userData.type === 'skitter' ? 210 : 340) + enemy.userData.wobble) * (enemy.userData.type === 'warden' ? 0.45 : 0.25);
     if (distance < 1.1 + enemy.userData.radius && performance.now() - state.lastHit > 550) {
       state.lastHit = performance.now();
-      state.health -= enemy.userData.damage;
-      message.textContent = `${enemy.userData.label} breach -${enemy.userData.damage}`;
-      flashBreach();
-      if (state.health <= 0) endGame();
+      applyPlayerDamage(enemy.userData.damage, enemy.userData.label);
     }
   }
   if (state.enemies.length === 0 && state.running) clearWave();
@@ -610,6 +672,14 @@ window.addEventListener('mousemove', (event) => {
 window.__neonBreachTest = {
   summarizeRun,
   enemyTypes: () => state.enemies.map((enemy) => ({ type: enemy.userData.type, hp: enemy.userData.hp, score: enemy.userData.score, speed: enemy.userData.speed })),
+  forceHitFeedback: () => {
+    const enemy = state.enemies[0];
+    state.hits += 1;
+    if (enemy) showDamage(enemy);
+    else triggerHitMarkerFeedback();
+    updateHud();
+  },
+  forcePlayerDamage: (amount = 7) => applyPlayerDamage(Number(amount) || 7, 'Test pulse'),
   advanceToNextWave: () => {
     if (state.waveStatus !== 'cleared') return;
     state.waveTimer = 0;

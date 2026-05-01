@@ -34,6 +34,13 @@ Open: <http://127.0.0.1:4173/games/fps-gauntlet/>
 - Colored north/east/south/west quadrant towers and signage make callouts easier.
 - Brighter boundary walls and low cover barricades help players read playable space while strafing.
 
+## Weapon and damage feedback
+
+- Firing the pulse carbine now kicks the reticle and shows a short green/cyan muzzle flash near the crosshair.
+- Enemy hits flash a hit marker at screen center and spawn a floating damage pop near the impacted drone.
+- Player damage triggers a red breach flash around the screen edge plus a health-card pulse.
+- The `#game-root` exposes deterministic Playwright hooks: `data-muzzle-flashes`, `data-hit-markers`, `data-damage-flashes`, `data-last-shot-feedback-at`, `data-last-hit-marker-at`, `data-last-damage-at`, and active-state flags for each feedback effect.
+
 ## Testing
 
 From the repo root:

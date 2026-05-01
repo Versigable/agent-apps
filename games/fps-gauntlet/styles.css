@@ -310,6 +310,12 @@ kbd { border:1px solid rgba(255,255,255,.25); border-bottom-width:3px; border-ra
   background:radial-gradient(circle, transparent 32%, rgba(255,77,109,.24) 62%, rgba(255,77,109,.46));
 }
 #game-root.hit #breach-flash { animation:breach .32s ease-out; }
+#game-root.damage-alert .hud-card--health { animation:health-alert .34s ease-out; }
+#game-root[data-muzzle-flash-active="true"] #muzzle-flash,
+#game-root[data-hit-marker-active="true"] #hit-marker,
+#game-root[data-damage-flash-active="true"] #breach-flash {
+  will-change:opacity, transform;
+}
 #game-root[data-state="running"] #overlay { display:none; }
 .damage-pop { position:fixed; pointer-events:none; z-index:7; color:var(--green); font-weight:900; text-shadow:0 0 10px var(--green); animation:float .65s ease-out forwards; }
 @keyframes float { from { opacity:1; transform:translateY(0) scale(1); } to { opacity:0; transform:translateY(-38px) scale(1.25); } }
@@ -370,6 +376,7 @@ kbd { border:1px solid rgba(255,255,255,.25); border-bottom-width:3px; border-ra
 @keyframes sheen { to { transform:translateX(130%); } }
 @keyframes sweep { to { transform:rotate(360deg); } }
 @keyframes breach { from { opacity:1; } to { opacity:0; } }
+@keyframes health-alert { 0% { border-color:rgba(255,77,109,.95); box-shadow:0 0 34px rgba(255,77,109,.42), inset 0 0 24px rgba(255,77,109,.24); } 100% { border-color:rgba(35,230,255,.42); box-shadow:0 0 30px rgba(35,230,255,.08), inset 0 0 24px rgba(35,230,255,.045); } }
 @keyframes muzzle { 0% { opacity:1; transform:translate(-50%, -50%) scale(.42) rotate(0deg); } 100% { opacity:0; transform:translate(-50%, -50%) scale(1.25) rotate(28deg); } }
 @keyframes hitmark { 0% { opacity:1; transform:translate(-50%, -50%) scale(.72); } 100% { opacity:0; transform:translate(-50%, -50%) scale(1.14); } }
 @keyframes reticle-kick { 0% { transform:translate(-50%, -50%) scale(1.35); } 100% { transform:translate(-50%, -50%) scale(1); } }

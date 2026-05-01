@@ -73,6 +73,37 @@ test('fps gauntlet starts, accepts controls, shoots drones, and updates hud', as
   await page.keyboard.up('KeyW');
   await page.keyboard.up('KeyD');
 
+  const feedbackAfterFire = await page.locator('#game-root').evaluate((root) => ({
+    shots: Number(root.getAttribute('data-shots-fired')),
+    muzzleFlashes: Number(root.getAttribute('data-muzzle-flashes')),
+    lastShotFeedbackAt: Number(root.getAttribute('data-last-shot-feedback-at'))
+  }));
+  expect(feedbackAfterFire.shots).toBeGreaterThan(0);
+  expect(feedbackAfterFire.muzzleFlashes).toBeGreaterThan(0);
+  expect(feedbackAfterFire.lastShotFeedbackAt).toBeGreaterThan(0);
+
+  await page.evaluate(() => window.__neonBreachTest.forceHitFeedback());
+  await expect(page.locator('#game-root')).toHaveAttribute('data-hit-marker-active', 'true');
+  const feedbackAfterHit = await page.locator('#game-root').evaluate((root) => ({
+    hitMarkers: Number(root.getAttribute('data-hit-markers')),
+    shotsHit: Number(root.getAttribute('data-shots-hit')),
+    lastHitMarkerAt: Number(root.getAttribute('data-last-hit-marker-at'))
+  }));
+  expect(feedbackAfterHit.hitMarkers).toBeGreaterThan(0);
+  expect(feedbackAfterHit.shotsHit).toBeGreaterThan(0);
+  expect(feedbackAfterHit.lastHitMarkerAt).toBeGreaterThan(0);
+
+  await page.evaluate(() => window.__neonBreachTest.forcePlayerDamage(7));
+  await expect(page.locator('#game-root')).toHaveAttribute('data-damage-flash-active', 'true');
+  const feedbackAfterDamage = await page.locator('#game-root').evaluate((root) => ({
+    damageFlashes: Number(root.getAttribute('data-damage-flashes')),
+    lastDamageAt: Number(root.getAttribute('data-last-damage-at')),
+    health: Number(root.getAttribute('data-health'))
+  }));
+  expect(feedbackAfterDamage.damageFlashes).toBeGreaterThan(0);
+  expect(feedbackAfterDamage.lastDamageAt).toBeGreaterThan(0);
+  expect(feedbackAfterDamage.health).toBeLessThan(100);
+
   const shots = Number(await page.locator('#game-root').getAttribute('data-shots-fired'));
   const jumps = Number(await page.locator('#game-root').getAttribute('data-jumps'));
   await page.evaluate(() => window.__neonBreachTest.clearWave());
