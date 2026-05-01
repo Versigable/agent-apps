@@ -155,6 +155,35 @@ html, body, #game-root {
 .legend-dot { width:8px; height:8px; border-radius:50%; background:var(--red); box-shadow:0 0 10px var(--red); }
 .legend-dot--brute { width:10px; height:10px; background:var(--amber); box-shadow:0 0 11px var(--amber); }
 .legend-dot--warden { border-radius:2px; background:var(--cyan); box-shadow:0 0 11px var(--cyan); transform:rotate(45deg); }
+#arena-readout {
+  display:grid;
+  grid-template-columns:1fr;
+  gap:5px;
+  margin-top:12px;
+  padding:9px 10px;
+  border:1px solid rgba(35,230,255,.16);
+  border-radius:13px;
+  background:linear-gradient(180deg, rgba(35,230,255,.06), rgba(255,209,102,.045));
+}
+#arena-readout b {
+  color:#d9f7ff;
+  font-size:.58rem;
+  text-transform:uppercase;
+  letter-spacing:.09em;
+  padding-left:12px;
+  position:relative;
+}
+#arena-readout b::before {
+  content:"";
+  position:absolute;
+  left:0;
+  top:.32em;
+  width:6px;
+  height:6px;
+  border-radius:2px;
+  background:var(--cyan);
+  box-shadow:0 0 10px var(--cyan);
+}
 .panel {
   position:fixed;
   top:50%;

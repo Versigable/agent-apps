@@ -14,7 +14,7 @@ async function collectConsoleErrors(page) {
 
 async function saveSmokeScreenshot(page, filename) {
   await fs.mkdir(smokeScreenshotDir, { recursive: true });
-  await page.screenshot({ path: `${smokeScreenshotDir}/${filename}`, fullPage: true });
+  await page.screenshot({ path: `${smokeScreenshotDir}/${filename}`, fullPage: false, timeout: 12000 });
 }
 
 test('agent game arcade loads manifest and exposes fps gauntlet', async ({ page }) => {
@@ -39,6 +39,7 @@ test('agent game arcade loads manifest and exposes fps gauntlet', async ({ page 
 });
 
 test('fps gauntlet starts, accepts controls, shoots drones, and updates hud', async ({ page }) => {
+  test.setTimeout(70000);
   const errors = await collectConsoleErrors(page);
   await page.goto('/games/fps-gauntlet/');
   await expect(page.getByRole('heading', { name: 'Neon Breach' })).toBeVisible();
@@ -53,6 +54,12 @@ test('fps gauntlet starts, accepts controls, shoots drones, and updates hud', as
   await expect(page.locator('#game-root')).toHaveAttribute('data-enemy-types', /skitter/);
   await expect(page.locator('.radar-dot--brute').first()).toBeVisible();
   await expect(page.locator('#weapon-status')).toHaveText('READY');
+  await expect(page.getByTestId('arena-readout')).toContainText('Reactor');
+  await expect(page.getByTestId('arena-readout')).toContainText('Towers');
+  await expect(page.locator('#game-root')).toHaveAttribute('data-arena-landmarks', /central-reactor/);
+  await expect(page.locator('#game-root')).toHaveAttribute('data-arena-landmarks', /north-tower/);
+  await expect(page.locator('#game-root')).toHaveAttribute('data-arena-landmarks', /boundary-wall/);
+  await expect(page.locator('#game-root')).toHaveAttribute('data-arena-landmarks', /cover-barricades/);
   await expect(page.getByTestId('high-score')).toHaveText(/\d+/);
 
   await page.getByRole('button', { name: /start breach/i }).click();

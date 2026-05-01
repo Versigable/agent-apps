@@ -28,6 +28,12 @@ Open: <http://127.0.0.1:4173/games/fps-gauntlet/>
 - Brute — slower amber heavies with bigger collision silhouettes worth 45 points.
 - Warden — cyan hovering drones with tall profiles worth 35 points.
 
+## Arena readability
+
+- Central reactor landmark anchors orientation in the middle of the vault.
+- Colored north/east/south/west quadrant towers and signage make callouts easier.
+- Brighter boundary walls and low cover barricades help players read playable space while strafing.
+
 ## Testing
 
 From the repo root:
@@ -57,8 +63,8 @@ Rate each item from 0–10 after playing:
 
 ## Next iteration ideas
 
-- Arena landmarks, cover, and readability signage.
 - Audio pass for fire/hit/death/wave/damage feedback.
+- Pause/restart controls and death/menu polish.
 - Weapon pickups and reload/overheat tuning.
 - Automated 10-second gameplay video capture.
 - GitLab Pages preview for one-click Discord testing.

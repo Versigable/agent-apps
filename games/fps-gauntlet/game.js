@@ -45,6 +45,7 @@ const state = {
   summary: '',
   keys: new Set(),
   enemies: [],
+  arenaLandmarks: [],
   projectiles: [],
   effects: [],
   lastShot: 0,
@@ -71,21 +72,119 @@ const pinkLight = new THREE.PointLight(0xff37df, 35, 60);
 pinkLight.position.set(-12, 4, -10);
 scene.add(pinkLight);
 
+function registerLandmark(name) {
+  state.arenaLandmarks.push(name);
+}
+
 function makeArena() {
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(72, 72, 36, 36),
-    new THREE.MeshStandardMaterial({ color: 0x07101f, metalness: 0.65, roughness: 0.35 })
+    new THREE.MeshStandardMaterial({ color: 0x07101f, emissive: 0x02060f, metalness: 0.65, roughness: 0.35 })
   );
   floor.rotation.x = -Math.PI / 2;
   world.add(floor);
 
   const grid = new THREE.GridHelper(72, 36, 0x23e6ff, 0x193b5a);
-  grid.material.opacity = 0.32;
+  grid.material.opacity = 0.38;
   grid.material.transparent = true;
   world.add(grid);
 
   const wallMat = new THREE.MeshStandardMaterial({ color: 0x111d36, emissive: 0x071a34, metalness: 0.4, roughness: 0.42 });
   const neonMat = new THREE.MeshBasicMaterial({ color: 0x23e6ff });
+  const pinkMat = new THREE.MeshBasicMaterial({ color: 0xff37df });
+  const amberMat = new THREE.MeshBasicMaterial({ color: 0xffd166 });
+
+  const reactor = new THREE.Group();
+  const core = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.25, 1.8, 4.4, 24),
+    new THREE.MeshStandardMaterial({ color: 0x10283f, emissive: 0x0a4966, metalness: 0.55, roughness: 0.24 })
+  );
+  core.position.y = 2.2;
+  const reactorGlow = new THREE.Mesh(new THREE.SphereGeometry(1.05, 24, 16), new THREE.MeshBasicMaterial({ color: 0x76ff8f, transparent: true, opacity: 0.72 }));
+  reactorGlow.position.y = 3.35;
+  const reactorRing = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.055, 10, 56), pinkMat);
+  reactorRing.rotation.x = Math.PI / 2;
+  reactorRing.position.y = 2.2;
+  const reactorSpire = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.28, 10, 16), new THREE.MeshBasicMaterial({ color: 0x76ff8f }));
+  reactorSpire.position.y = 5.2;
+  const reactorCrown = new THREE.Mesh(new THREE.TorusGeometry(3.5, 0.08, 10, 72), neonMat);
+  reactorCrown.position.y = 6.8;
+  reactor.add(core, reactorGlow, reactorRing, reactorSpire, reactorCrown);
+  world.add(reactor);
+  const laneMat = new THREE.MeshBasicMaterial({ color: 0x23e6ff, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+  const crossLane = new THREE.Mesh(new THREE.PlaneGeometry(68, 0.38), laneMat);
+  crossLane.rotation.x = -Math.PI / 2;
+  crossLane.position.y = 0.035;
+  world.add(crossLane);
+  const longLane = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 68), laneMat.clone());
+  longLane.rotation.x = -Math.PI / 2;
+  longLane.position.y = 0.04;
+  world.add(longLane);
+  const reactorLight = new THREE.PointLight(0x76ff8f, 95, 42);
+  reactorLight.position.set(0, 6.4, 0);
+  scene.add(reactorLight);
+  registerLandmark('central-reactor');
+
+  const quadrants = [
+    { name: 'north-tower', x: 0, z: -24, color: 0x23e6ff, mat: neonMat },
+    { name: 'east-tower', x: 24, z: 0, color: 0xffd166, mat: amberMat },
+    { name: 'south-tower', x: 0, z: 24, color: 0xff37df, mat: pinkMat },
+    { name: 'west-tower', x: -24, z: 0, color: 0x76ff8f, mat: new THREE.MeshBasicMaterial({ color: 0x76ff8f }) }
+  ];
+  for (const quadrant of quadrants) {
+    const tower = new THREE.Group();
+    const mast = new THREE.Mesh(new THREE.BoxGeometry(1.4, 8, 1.4), wallMat);
+    mast.position.y = 4;
+    const beacon = new THREE.Mesh(new THREE.OctahedronGeometry(0.9, 0), quadrant.mat);
+    beacon.position.y = 8.65;
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 11, 12), quadrant.mat);
+    beam.position.y = 5.5;
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.72, 0.22), quadrant.mat);
+    sign.position.y = 4.4;
+    sign.lookAt(0, 4.4, 0);
+    tower.add(mast, beacon, beam, sign);
+    tower.position.set(quadrant.x, 0, quadrant.z);
+    world.add(tower);
+    const beaconLight = new THREE.PointLight(quadrant.color, 26, 22);
+    beaconLight.position.set(quadrant.x, 9.2, quadrant.z);
+    scene.add(beaconLight);
+    registerLandmark(quadrant.name);
+  }
+
+  const boundaryPieces = [
+    [0, 1.8, -34.5, 72, 3.6, 0.7], [0, 1.8, 34.5, 72, 3.6, 0.7],
+    [-34.5, 1.8, 0, 0.7, 3.6, 72], [34.5, 1.8, 0, 0.7, 3.6, 72]
+  ];
+  for (const [x, y, z, w, h, d] of boundaryPieces) {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+    wall.position.set(x, y, z);
+    world.add(wall);
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(Math.max(w, 0.9), 0.12, Math.max(d, 0.9)), neonMat);
+    rail.position.set(x, y + h / 2 + 0.12, z);
+    world.add(rail);
+  }
+  registerLandmark('boundary-wall');
+
+  const coverPositions = [
+    [-13, 0.8, -10, Math.PI / 10], [13, 0.8, -10, -Math.PI / 10],
+    [-15, 0.8, 12, -Math.PI / 8], [15, 0.8, 12, Math.PI / 8],
+    [-7, 0.8, 21, Math.PI / 2], [7, 0.8, -21, Math.PI / 2]
+  ];
+  for (const [x, y, z, ry] of coverPositions) {
+    const barricade = new THREE.Mesh(
+      new THREE.BoxGeometry(5.2, 1.6, 0.7),
+      new THREE.MeshStandardMaterial({ color: 0x132742, emissive: 0x06182a, metalness: 0.5, roughness: 0.35 })
+    );
+    barricade.position.set(x, y, z);
+    barricade.rotation.y = ry;
+    world.add(barricade);
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(5.35, 0.08, 0.78), neonMat);
+    trim.position.set(x, y + 0.84, z);
+    trim.rotation.copy(barricade.rotation);
+    world.add(trim);
+  }
+  registerLandmark('cover-barricades');
+
   for (let i = 0; i < 26; i++) {
     const angle = (i / 26) * Math.PI * 2;
     const radius = 33;
@@ -330,6 +429,7 @@ function updateHud() {
   root.dataset.shotsFired = String(state.shotsFired);
   root.dataset.enemyCount = String(state.enemies.length);
   root.dataset.enemyTypes = [...new Set(state.enemies.map((enemy) => enemy.userData.type || 'skitter'))].sort().join(',');
+  root.dataset.arenaLandmarks = state.arenaLandmarks.join(',');
   root.dataset.jumps = String(state.jumps);
   root.dataset.shotsHit = String(state.hits);
   root.dataset.kills = String(state.kills);
