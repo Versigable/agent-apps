@@ -157,7 +157,7 @@ h1 { margin:.1em 0; font-size:clamp(2.6rem, 9vw, 5.8rem); line-height:.88; text-
 p { color:#bad0df; line-height:1.65; }
 .control-grid {
   display:grid;
-  grid-template-columns:repeat(5, 1fr);
+  grid-template-columns:repeat(6, 1fr);
   gap:8px;
   padding:0;
   margin:22px 0;
@@ -215,6 +215,46 @@ kbd { border:1px solid rgba(255,255,255,.25); border-bottom-width:3px; border-ra
 #crosshair::after { left:50%; bottom:-12px; width:1px; height:17px; }
 #crosshair span::before { top:50%; left:-12px; width:17px; height:1px; }
 #crosshair span::after { top:50%; right:-12px; width:17px; height:1px; }
+
+#muzzle-flash {
+  position:fixed;
+  left:50%;
+  top:55%;
+  z-index:4;
+  width:86px;
+  height:86px;
+  pointer-events:none;
+  opacity:0;
+  transform:translate(-50%, -50%) scale(.5);
+  background:radial-gradient(circle, rgba(255,255,255,.95) 0 7%, rgba(118,255,143,.82) 8% 22%, rgba(35,230,255,.38) 23% 44%, transparent 62%);
+  filter:blur(.2px) drop-shadow(0 0 20px var(--green));
+  clip-path:polygon(50% 0, 63% 33%, 100% 50%, 63% 63%, 50% 100%, 37% 63%, 0 50%, 37% 33%);
+}
+#game-root.firing #muzzle-flash { animation:muzzle .13s ease-out; }
+#hit-marker {
+  position:fixed;
+  left:50%;
+  top:50%;
+  z-index:5;
+  width:74px;
+  height:74px;
+  pointer-events:none;
+  opacity:0;
+  transform:translate(-50%, -50%) scale(.82);
+}
+#hit-marker::before,
+#hit-marker::after {
+  content:"";
+  position:absolute;
+  inset:10px;
+  border:2px solid var(--green);
+  transform:rotate(45deg);
+  box-shadow:0 0 15px var(--green);
+}
+#hit-marker::after { inset:22px; border-color:white; opacity:.85; }
+#game-root.hit-confirm #hit-marker { animation:hitmark .24s ease-out; }
+#game-root.recoil #crosshair { animation:reticle-kick .16s ease-out; }
+
 #breach-flash {
   position:fixed;
   inset:0;
@@ -230,6 +270,9 @@ kbd { border:1px solid rgba(255,255,255,.25); border-bottom-width:3px; border-ra
 @keyframes sheen { to { transform:translateX(130%); } }
 @keyframes sweep { to { transform:rotate(360deg); } }
 @keyframes breach { from { opacity:1; } to { opacity:0; } }
+@keyframes muzzle { 0% { opacity:1; transform:translate(-50%, -50%) scale(.42) rotate(0deg); } 100% { opacity:0; transform:translate(-50%, -50%) scale(1.25) rotate(28deg); } }
+@keyframes hitmark { 0% { opacity:1; transform:translate(-50%, -50%) scale(.72); } 100% { opacity:0; transform:translate(-50%, -50%) scale(1.14); } }
+@keyframes reticle-kick { 0% { transform:translate(-50%, -50%) scale(1.35); } 100% { transform:translate(-50%, -50%) scale(1); } }
 @media (max-width: 820px) {
   #hud { left:10px; right:10px; transform:none; flex-wrap:wrap; }
   .hud-card { min-width:calc(50% - 5px); }

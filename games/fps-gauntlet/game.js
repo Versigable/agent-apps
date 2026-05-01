@@ -27,9 +27,13 @@ const state = {
   yaw: 0,
   pitch: 0,
   velocity: new THREE.Vector3(),
+  verticalVelocity: 0,
+  grounded: true,
+  jumps: 0,
   keys: new Set(),
   enemies: [],
   projectiles: [],
+  effects: [],
   lastShot: 0,
   lastHit: 0,
   clock: new THREE.Clock()
@@ -101,11 +105,12 @@ function spawnEnemy(index = state.enemies.length) {
 }
 
 function resetGame() {
-  state.health = 100; state.score = 0; state.wave = 1; state.heat = 0; state.shotsFired = 0;
-  state.yaw = 0; state.pitch = 0; state.velocity.set(0, 0, 0); camera.position.set(0, 1.7, 8);
+  state.health = 100; state.score = 0; state.wave = 1; state.heat = 0; state.shotsFired = 0; state.jumps = 0;
+  state.yaw = 0; state.pitch = 0; state.velocity.set(0, 0, 0); state.verticalVelocity = 0; state.grounded = true; camera.position.set(0, 1.7, 8);
   for (const enemy of state.enemies) world.remove(enemy);
   for (const projectile of state.projectiles) world.remove(projectile.mesh);
-  state.enemies = []; state.projectiles = [];
+  for (const effect of state.effects) world.remove(effect.mesh);
+  state.enemies = []; state.projectiles = []; state.effects = [];
   for (let i = 0; i < 7; i++) spawnEnemy(i);
   updateHud();
 }
@@ -131,6 +136,12 @@ function endGame() {
   document.exitPointerLock?.();
 }
 
+function pulseClass(className) {
+  root.classList.remove(className);
+  void root.offsetWidth;
+  root.classList.add(className);
+}
+
 function shoot() {
   if (!state.running) return;
   const now = performance.now();
@@ -138,13 +149,35 @@ function shoot() {
   state.lastShot = now;
   state.shotsFired += 1;
   state.heat = Math.min(100, state.heat + 14);
+  pulseClass('firing');
+  pulseClass('recoil');
+  camera.position.add(new THREE.Vector3(0, 0, 0.055).applyQuaternion(camera.quaternion));
 
   const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), new THREE.MeshBasicMaterial({ color: 0x76ff8f }));
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 8), new THREE.MeshBasicMaterial({ color: 0x76ff8f }));
+  const trail = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.08, 1.1, 8),
+    new THREE.MeshBasicMaterial({ color: 0x23e6ff, transparent: true, opacity: 0.62 })
+  );
+  trail.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+  mesh.add(trail);
   mesh.position.copy(camera.position).add(direction.clone().multiplyScalar(0.8));
   world.add(mesh);
   state.projectiles.push({ mesh, direction, life: 1.1 });
   updateHud();
+}
+
+function spawnBurst(position, color = 0x76ff8f, count = 10) {
+  for (let i = 0; i < count; i++) {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.045 + Math.random() * 0.05, 8, 6),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95 })
+    );
+    mesh.position.copy(position);
+    const velocity = new THREE.Vector3((Math.random() - 0.5) * 6, Math.random() * 4.5, (Math.random() - 0.5) * 6);
+    world.add(mesh);
+    state.effects.push({ mesh, velocity, life: 0.45 + Math.random() * 0.28, maxLife: 0.73 });
+  }
 }
 
 function showDamage(enemy) {
@@ -155,13 +188,13 @@ function showDamage(enemy) {
   pop.style.left = `${(projected.x * 0.5 + 0.5) * window.innerWidth}px`;
   pop.style.top = `${(-projected.y * 0.5 + 0.5) * window.innerHeight}px`;
   document.body.append(pop);
+  pulseClass('hit-confirm');
+  spawnBurst(enemy.position, 0x76ff8f, 7);
   setTimeout(() => pop.remove(), 700);
 }
 
 function flashBreach() {
-  root.classList.remove('hit');
-  void root.offsetWidth;
-  root.classList.add('hit');
+  pulseClass('hit');
 }
 
 function renderRadar() {
@@ -194,6 +227,7 @@ function updateHud() {
   weaponStatus.classList.toggle('overheat', state.heat > 70);
   root.dataset.shotsFired = String(state.shotsFired);
   root.dataset.enemyCount = String(state.enemies.length);
+  root.dataset.jumps = String(state.jumps);
   renderRadar();
 }
 
@@ -206,6 +240,13 @@ function updateMovement(dt) {
   if (direction.lengthSq() > 0) direction.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), state.yaw);
   state.velocity.lerp(direction.multiplyScalar(speed), 0.22);
   camera.position.addScaledVector(state.velocity, dt);
+  state.verticalVelocity -= 22 * dt;
+  camera.position.y += state.verticalVelocity * dt;
+  if (camera.position.y <= 1.7) {
+    camera.position.y = 1.7;
+    state.verticalVelocity = 0;
+    state.grounded = true;
+  }
   camera.position.x = THREE.MathUtils.clamp(camera.position.x, -30, 30);
   camera.position.z = THREE.MathUtils.clamp(camera.position.z, -30, 30);
   camera.rotation.order = 'YXZ';
@@ -248,6 +289,7 @@ function updateProjectiles(dt) {
         world.remove(projectile.mesh);
         state.projectiles.splice(state.projectiles.indexOf(projectile), 1);
         if (enemy.userData.hp <= 0) {
+          spawnBurst(enemy.position, 0xff37df, 16);
           world.remove(enemy);
           state.enemies.splice(state.enemies.indexOf(enemy), 1);
           state.score += 25;
@@ -263,6 +305,29 @@ function updateProjectiles(dt) {
   }
 }
 
+
+function updateEffects(dt) {
+  for (const effect of [...state.effects]) {
+    effect.life -= dt;
+    effect.velocity.y -= 4.5 * dt;
+    effect.mesh.position.addScaledVector(effect.velocity, dt);
+    effect.mesh.material.opacity = Math.max(0, effect.life / effect.maxLife);
+    if (effect.life <= 0) {
+      world.remove(effect.mesh);
+      state.effects.splice(state.effects.indexOf(effect), 1);
+    }
+  }
+}
+
+function jump() {
+  if (!state.running || !state.grounded) return;
+  state.verticalVelocity = 8.4;
+  state.grounded = false;
+  state.jumps += 1;
+  message.textContent = 'Boost jump engaged.';
+  updateHud();
+}
+
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(0.04, state.clock.getDelta());
@@ -271,6 +336,7 @@ function animate() {
     updateMovement(dt);
     updateEnemies(dt);
     updateProjectiles(dt);
+    updateEffects(dt);
     updateHud();
   }
   renderer.render(scene, camera);
@@ -279,7 +345,8 @@ function animate() {
 startButton.addEventListener('click', startGame);
 window.addEventListener('keydown', (event) => {
   state.keys.add(event.code);
-  if (event.code === 'KeyF' || event.code === 'Space') shoot();
+  if (event.code === 'KeyF') shoot();
+  if (event.code === 'Space') jump();
 });
 window.addEventListener('keyup', (event) => state.keys.delete(event.code));
 window.addEventListener('click', (event) => {

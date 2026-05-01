@@ -54,15 +54,18 @@ test('fps gauntlet starts, accepts controls, shoots drones, and updates hud', as
   await page.keyboard.down('KeyW');
   await page.keyboard.down('KeyD');
   await page.keyboard.press('KeyF');
+  await page.keyboard.press('Space');
   await page.waitForTimeout(900);
   await page.keyboard.up('KeyW');
   await page.keyboard.up('KeyD');
 
   const shots = Number(await page.locator('#game-root').getAttribute('data-shots-fired'));
+  const jumps = Number(await page.locator('#game-root').getAttribute('data-jumps'));
   const enemyCount = Number(await page.locator('#game-root').getAttribute('data-enemy-count'));
   const health = Number(await page.getByTestId('health').textContent());
 
   expect(shots).toBeGreaterThan(0);
+  expect(jumps).toBeGreaterThan(0);
   expect(enemyCount).toBeGreaterThan(0);
   expect(health).toBeGreaterThan(0);
   await saveSmokeScreenshot(page, 'fps-gauntlet-smoke.png');

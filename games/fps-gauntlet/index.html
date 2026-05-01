@@ -10,7 +10,7 @@
     </script>
   </head>
   <body>
-    <div id="game-root" data-state="idle" data-shots-fired="0" data-enemy-count="0">
+    <div id="game-root" data-state="idle" data-shots-fired="0" data-enemy-count="0" data-jumps="0">
       <canvas id="game-canvas" aria-label="Neon Breach game canvas"></canvas>
       <section id="hud" aria-label="Game HUD">
         <div class="hud-card hud-card--health"><span>Health</span><strong data-testid="health" id="health">100</strong><i id="health-bar"></i></div>
@@ -35,6 +35,7 @@
           <li><kbd>Mouse</kbd><span>look</span></li>
           <li><kbd>Click</kbd><span>fire</span></li>
           <li><kbd>F</kbd><span>test fire</span></li>
+          <li><kbd>Space</kbd><span>jump</span></li>
           <li><kbd>Shift</kbd><span>sprint</span></li>
         </ul>
         <button id="start-button" type="button">Start Breach</button>
@@ -42,6 +43,8 @@
       </section>
       <section id="message" aria-live="polite"></section>
       <section id="breach-flash" aria-hidden="true"></section>
+      <section id="muzzle-flash" aria-hidden="true"></section>
+      <section id="hit-marker" aria-hidden="true"></section>
       <section id="crosshair" aria-hidden="true"><span></span></section>
     </div>
     <script src="./game.js" type="module"></script>
