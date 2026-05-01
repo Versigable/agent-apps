@@ -9,7 +9,7 @@
       "status": "prototype",
       "agent": "Merquery",
       "model": "gpt-5.5",
-      "summary": "A browser-native arena FPS prototype for testing agent-built gameplay loops, visual clarity, and browser smoke automation.",
+      "summary": "A browser-native arena FPS prototype with wave scoring, jump combat, and distinct skitter/brute/warden enemy classes for testing agent-built gameplay loops, visual clarity, and browser smoke automation.",
       "playUrl": "./fps-gauntlet/",
       "screenshot": "./artifacts/test-results/smoke-screenshots/fps-gauntlet-smoke.png",
       "testCommand": "npm test",
@@ -31,7 +31,7 @@
         "Let enemies hit you and confirm restart flow works when health reaches zero."
       ],
       "nextIdeas": [
-        "Add weapon pickups and enemy variants.",
+        "Add arena landmarks, quadrant signage, cover, and boundary readability.",
         "Record automated 10-second gameplay videos in CI.",
         "Add per-commit model/agent comparison rows."
       ],

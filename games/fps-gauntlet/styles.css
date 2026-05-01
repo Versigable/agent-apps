@@ -131,6 +131,8 @@ html, body, #game-root {
   background:var(--red);
   box-shadow:0 0 11px var(--red);
 }
+.radar-dot--brute { width:10px; height:10px; margin:-5px 0 0 -5px; background:var(--amber); box-shadow:0 0 13px var(--amber); }
+.radar-dot--warden { border-radius:2px; background:var(--cyan); box-shadow:0 0 13px var(--cyan); transform:rotate(45deg); }
 .weapon-readout {
   margin-top:12px;
   padding-top:12px;
@@ -138,6 +140,21 @@ html, body, #game-root {
 }
 .weapon-readout strong { color:var(--green); font-size:.85rem; letter-spacing:.16em; }
 .weapon-readout strong.overheat { color:var(--red); text-shadow:0 0 12px rgba(255,77,109,.45); }
+#enemy-legend {
+  display:grid;
+  grid-template-columns:auto 1fr;
+  align-items:center;
+  gap:6px 8px;
+  margin-top:12px;
+  padding:9px 10px;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:13px;
+  background:rgba(255,255,255,.04);
+}
+#enemy-legend b { color:#d9f7ff; font-size:.58rem; text-transform:uppercase; letter-spacing:.1em; }
+.legend-dot { width:8px; height:8px; border-radius:50%; background:var(--red); box-shadow:0 0 10px var(--red); }
+.legend-dot--brute { width:10px; height:10px; background:var(--amber); box-shadow:0 0 11px var(--amber); }
+.legend-dot--warden { border-radius:2px; background:var(--cyan); box-shadow:0 0 11px var(--cyan); transform:rotate(45deg); }
 .panel {
   position:fixed;
   top:50%;

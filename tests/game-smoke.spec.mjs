@@ -46,6 +46,12 @@ test('fps gauntlet starts, accepts controls, shoots drones, and updates hud', as
   await expect(page.getByTestId('score')).toHaveText('0');
   await expect(page.getByTestId('radar')).toBeVisible();
   await expect(page.getByTestId('threat-count')).toHaveText('8');
+  await expect(page.locator('#enemy-legend')).toContainText('Skitter');
+  await expect(page.locator('#enemy-legend')).toContainText('Brute');
+  await expect(page.locator('#enemy-legend')).toContainText('Warden');
+  await expect(page.locator('#game-root')).toHaveAttribute('data-enemy-types', /brute/);
+  await expect(page.locator('#game-root')).toHaveAttribute('data-enemy-types', /skitter/);
+  await expect(page.locator('.radar-dot--brute').first()).toBeVisible();
   await expect(page.locator('#weapon-status')).toHaveText('READY');
   await expect(page.getByTestId('high-score')).toHaveText(/\d+/);
 
@@ -71,6 +77,10 @@ test('fps gauntlet starts, accepts controls, shoots drones, and updates hud', as
   await page.evaluate(() => window.__neonBreachTest.advanceToNextWave());
   await expect(page.locator('#game-root')).toHaveAttribute('data-wave-status', 'intro');
   await expect(page.getByTestId('wave')).toHaveText('2');
+  await expect(page.locator('#game-root')).toHaveAttribute('data-enemy-types', /warden/);
+  const enemyTypes = await page.evaluate(() => window.__neonBreachTest.enemyTypes());
+  expect(new Set(enemyTypes.map((enemy) => enemy.type)).size).toBeGreaterThanOrEqual(3);
+  expect(enemyTypes.find((enemy) => enemy.type === 'brute').score).toBeGreaterThan(enemyTypes.find((enemy) => enemy.type === 'skitter').score);
 
   const enemyCount = Number(await page.locator('#game-root').getAttribute('data-enemy-count'));
   const accuracy = Number(await page.locator('#game-root').getAttribute('data-accuracy'));

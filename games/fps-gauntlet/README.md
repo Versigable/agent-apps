@@ -19,7 +19,14 @@ Open: <http://127.0.0.1:4173/games/fps-gauntlet/>
 - Mouse — look around after pointer lock
 - Left click — fire
 - `F` — fire fallback for headless tests
+- `Space` — boost jump
 - `Shift` — sprint
+
+## Enemy classes
+
+- Skitter — fast, fragile red drones worth 20 points.
+- Brute — slower amber heavies with bigger collision silhouettes worth 45 points.
+- Warden — cyan hovering drones with tall profiles worth 35 points.
 
 ## Testing
 
@@ -50,8 +57,8 @@ Rate each item from 0–10 after playing:
 
 ## Next iteration ideas
 
+- Arena landmarks, cover, and readability signage.
+- Audio pass for fire/hit/death/wave/damage feedback.
 - Weapon pickups and reload/overheat tuning.
-- Enemy variants: chargers, snipers, shield drones.
-- Level chunks instead of one arena.
 - Automated 10-second gameplay video capture.
 - GitLab Pages preview for one-click Discord testing.

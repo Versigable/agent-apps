@@ -101,6 +101,51 @@ function makeArena() {
 }
 makeArena();
 
+const ENEMY_TYPES = {
+  skitter: {
+    label: 'Skitter',
+    color: 0xff4d6d,
+    emissive: 0x5f0920,
+    core: 0x76ff8f,
+    hp: 2,
+    speed: 2.65,
+    score: 20,
+    damage: 9,
+    radius: 0.82,
+    scale: [0.78, 0.78, 0.78]
+  },
+  brute: {
+    label: 'Brute',
+    color: 0xffd166,
+    emissive: 0x5b3300,
+    core: 0xff37df,
+    hp: 5,
+    speed: 1.38,
+    score: 45,
+    damage: 17,
+    radius: 1.18,
+    scale: [1.25, 1.25, 1.25]
+  },
+  warden: {
+    label: 'Warden',
+    color: 0x23e6ff,
+    emissive: 0x063a55,
+    core: 0xffffff,
+    hp: 3,
+    speed: 1.95,
+    score: 35,
+    damage: 12,
+    radius: 0.98,
+    scale: [0.95, 1.35, 0.95]
+  }
+};
+const ENEMY_TYPE_ORDER = ['skitter', 'brute', 'warden'];
+
+function pickEnemyType(index, wave = state.wave) {
+  if (wave < 2) return index % 5 === 4 ? 'brute' : 'skitter';
+  return ENEMY_TYPE_ORDER[(index + wave) % ENEMY_TYPE_ORDER.length];
+}
+
 function spawnWave(wave = state.wave) {
   state.waveStatus = 'intro';
   state.waveTimer = 1.25;
@@ -110,18 +155,38 @@ function spawnWave(wave = state.wave) {
   for (let i = 0; i < 6 + wave * 2; i++) spawnEnemy(i);
 }
 
-function spawnEnemy(index = state.enemies.length) {
+function spawnEnemy(index = state.enemies.length, forcedType = null) {
+  const typeKey = forcedType || pickEnemyType(index);
+  const type = ENEMY_TYPES[typeKey] || ENEMY_TYPES.skitter;
   const group = new THREE.Group();
   const body = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(0.75, 1),
-    new THREE.MeshStandardMaterial({ color: 0xff4d6d, emissive: 0x5f0920, metalness: 0.25, roughness: 0.25 })
+    typeKey === 'brute' ? new THREE.DodecahedronGeometry(0.82, 0) : new THREE.IcosahedronGeometry(0.75, 1),
+    new THREE.MeshStandardMaterial({ color: type.color, emissive: type.emissive, metalness: 0.25, roughness: 0.25 })
   );
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), new THREE.MeshBasicMaterial({ color: 0x76ff8f }));
-  group.add(body, core);
+  body.scale.set(...type.scale);
+  const core = new THREE.Mesh(new THREE.SphereGeometry(typeKey === 'brute' ? 0.28 : 0.22, 16, 12), new THREE.MeshBasicMaterial({ color: type.core }));
+  const halo = new THREE.Mesh(
+    new THREE.TorusGeometry(typeKey === 'warden' ? 0.82 : 0.62, 0.035, 8, 28),
+    new THREE.MeshBasicMaterial({ color: type.core, transparent: true, opacity: 0.74 })
+  );
+  halo.rotation.x = Math.PI / 2;
+  if (typeKey === 'brute') halo.scale.set(1.25, 1.25, 1.25);
+  if (typeKey === 'skitter') halo.position.y = -0.2;
+  group.add(body, core, halo);
   const angle = index * 2.399 + state.wave;
   const radius = 16 + (index % 4) * 2.5;
   group.position.set(Math.cos(angle) * radius, 1.2, Math.sin(angle) * radius - 7);
-  group.userData = { hp: 3 + Math.floor(state.wave / 2), speed: 2.0 + state.wave * 0.18, wobble: Math.random() * 10 };
+  group.userData = {
+    type: typeKey,
+    label: type.label,
+    hp: type.hp + Math.floor(state.wave / 3),
+    maxHp: type.hp + Math.floor(state.wave / 3),
+    speed: type.speed + state.wave * 0.12,
+    score: type.score,
+    damage: type.damage,
+    radius: type.radius,
+    wobble: Math.random() * 10
+  };
   world.add(group);
   state.enemies.push(group);
 }
@@ -239,7 +304,7 @@ function renderRadar() {
     const x = THREE.MathUtils.clamp(relative.x / range, -1, 1);
     const z = THREE.MathUtils.clamp(relative.z / range, -1, 1);
     const dot = document.createElement('span');
-    dot.className = 'radar-dot';
+    dot.className = `radar-dot radar-dot--${enemy.userData.type || 'skitter'}`;
     dot.style.left = `${50 + x * 42}%`;
     dot.style.top = `${50 + z * 42}%`;
     radar.append(dot);
@@ -264,6 +329,7 @@ function updateHud() {
   weaponStatus.classList.toggle('overheat', state.heat > 70);
   root.dataset.shotsFired = String(state.shotsFired);
   root.dataset.enemyCount = String(state.enemies.length);
+  root.dataset.enemyTypes = [...new Set(state.enemies.map((enemy) => enemy.userData.type || 'skitter'))].sort().join(',');
   root.dataset.jumps = String(state.jumps);
   root.dataset.shotsHit = String(state.hits);
   root.dataset.kills = String(state.kills);
@@ -343,13 +409,14 @@ function updateEnemies(dt) {
     const toPlayer = playerFlat.clone().sub(enemy.position);
     const distance = toPlayer.length();
     if (distance > 0.001) enemy.position.addScaledVector(toPlayer.normalize(), enemy.userData.speed * dt);
-    enemy.rotation.x += dt * 1.4;
-    enemy.rotation.y += dt * 2.1;
-    enemy.position.y = 1.2 + Math.sin(performance.now() / 300 + enemy.userData.wobble) * 0.25;
-    if (distance < 1.45 && performance.now() - state.lastHit > 550) {
+    const turnRate = enemy.userData.type === 'brute' ? 1.05 : enemy.userData.type === 'warden' ? 2.8 : 2.1;
+    enemy.rotation.x += dt * (enemy.userData.type === 'warden' ? 0.7 : 1.4);
+    enemy.rotation.y += dt * turnRate;
+    enemy.position.y = 1.2 + Math.sin(performance.now() / (enemy.userData.type === 'skitter' ? 210 : 340) + enemy.userData.wobble) * (enemy.userData.type === 'warden' ? 0.45 : 0.25);
+    if (distance < 1.1 + enemy.userData.radius && performance.now() - state.lastHit > 550) {
       state.lastHit = performance.now();
-      state.health -= 12;
-      message.textContent = 'Hull breach -12';
+      state.health -= enemy.userData.damage;
+      message.textContent = `${enemy.userData.label} breach -${enemy.userData.damage}`;
       flashBreach();
       if (state.health <= 0) endGame();
     }
@@ -362,7 +429,7 @@ function updateProjectiles(dt) {
     projectile.life -= dt;
     projectile.mesh.position.addScaledVector(projectile.direction, 28 * dt);
     for (const enemy of [...state.enemies]) {
-      if (projectile.mesh.position.distanceTo(enemy.position) < 0.95) {
+      if (projectile.mesh.position.distanceTo(enemy.position) < enemy.userData.radius) {
         enemy.userData.hp -= 1;
         state.hits += 1;
         showDamage(enemy);
@@ -373,9 +440,9 @@ function updateProjectiles(dt) {
           world.remove(enemy);
           state.enemies.splice(state.enemies.indexOf(enemy), 1);
           state.kills += 1;
-          state.score += 25;
+          state.score += enemy.userData.score;
           state.highScore = Math.max(state.highScore, state.score);
-          message.textContent = 'Drone neutralized +25';
+          message.textContent = `${enemy.userData.label} neutralized +${enemy.userData.score}`;
         }
         break;
       }
@@ -442,6 +509,7 @@ window.addEventListener('mousemove', (event) => {
 });
 window.__neonBreachTest = {
   summarizeRun,
+  enemyTypes: () => state.enemies.map((enemy) => ({ type: enemy.userData.type, hp: enemy.userData.hp, score: enemy.userData.score, speed: enemy.userData.speed })),
   advanceToNextWave: () => {
     if (state.waveStatus !== 'cleared') return;
     state.waveTimer = 0;

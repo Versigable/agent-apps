@@ -23,6 +23,11 @@
         <div class="panel-header"><span>Vault Radar</span><b id="threat-count" data-testid="threat-count">0</b></div>
         <div id="radar" data-testid="radar" aria-label="Enemy radar"><span class="radar-sweep"></span></div>
         <div class="weapon-readout"><span>Pulse Carbine</span><strong id="weapon-status">READY</strong></div>
+        <div id="enemy-legend" aria-label="Enemy classes">
+          <span class="legend-dot legend-dot--skitter"></span><b>Skitter</b>
+          <span class="legend-dot legend-dot--brute"></span><b>Brute</b>
+          <span class="legend-dot legend-dot--warden"></span><b>Warden</b>
+        </div>
         <dl id="run-stats" aria-label="Run stats">
           <div><dt>Kills</dt><dd id="kills" data-testid="kills">0</dd></div>
           <div><dt>Shots</dt><dd id="shots-fired" data-testid="shots-fired">0</dd></div>
@@ -30,11 +35,11 @@
         </dl>
       </aside>
       <section id="overlay" class="panel">
-        <p class="eyebrow">FPS Gauntlet v0.2 UI Pass</p>
+        <p class="eyebrow">FPS Gauntlet v0.3 Enemy Variety Pass</p>
         <h1>Neon Breach</h1>
         <p>
-          Survive escalating drone waves in a neon training vault. Chain wave clears,
-          track accuracy, and chase the local high score while you strafe, sprint, and fire.
+          Survive escalating skitter, brute, and warden drones in a neon training vault.
+          Chain wave clears, track accuracy, and chase the local high score while you strafe, sprint, and fire.
         </p>
         <ul class="control-grid" aria-label="Controls">
           <li><kbd>WASD</kbd><span>move</span></li>
