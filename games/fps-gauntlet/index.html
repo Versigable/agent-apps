@@ -13,23 +13,36 @@
     <div id="game-root" data-state="idle" data-shots-fired="0" data-enemy-count="0">
       <canvas id="game-canvas" aria-label="Neon Breach game canvas"></canvas>
       <section id="hud" aria-label="Game HUD">
-        <div><span>Health</span><strong data-testid="health" id="health">100</strong></div>
-        <div><span>Score</span><strong data-testid="score" id="score">0</strong></div>
-        <div><span>Wave</span><strong data-testid="wave" id="wave">1</strong></div>
-        <div><span>Heat</span><strong data-testid="heat" id="heat">0</strong></div>
+        <div class="hud-card hud-card--health"><span>Health</span><strong data-testid="health" id="health">100</strong><i id="health-bar"></i></div>
+        <div class="hud-card"><span>Score</span><strong data-testid="score" id="score">0</strong></div>
+        <div class="hud-card"><span>Wave</span><strong data-testid="wave" id="wave">1</strong></div>
+        <div class="hud-card hud-card--heat"><span>Heat</span><strong data-testid="heat" id="heat">0</strong><i id="heat-bar"></i></div>
       </section>
+      <aside id="tactical-panel" aria-label="Tactical UI">
+        <div class="panel-header"><span>Vault Radar</span><b id="threat-count" data-testid="threat-count">0</b></div>
+        <div id="radar" data-testid="radar" aria-label="Enemy radar"><span class="radar-sweep"></span></div>
+        <div class="weapon-readout"><span>Pulse Carbine</span><strong id="weapon-status">READY</strong></div>
+      </aside>
       <section id="overlay" class="panel">
-        <p class="eyebrow">FPS Gauntlet v0</p>
+        <p class="eyebrow">FPS Gauntlet v0.2 UI Pass</p>
         <h1>Neon Breach</h1>
         <p>
-          Survive drone waves in a neon training vault. WASD moves, mouse looks,
-          left click fires, <kbd>F</kbd> fires for test/headless fallback, <kbd>Shift</kbd> sprints.
+          Survive drone waves in a neon training vault. Watch the new radar, heat rail,
+          threat counter, and breach alerts while you strafe, sprint, and fire.
         </p>
+        <ul class="control-grid" aria-label="Controls">
+          <li><kbd>WASD</kbd><span>move</span></li>
+          <li><kbd>Mouse</kbd><span>look</span></li>
+          <li><kbd>Click</kbd><span>fire</span></li>
+          <li><kbd>F</kbd><span>test fire</span></li>
+          <li><kbd>Shift</kbd><span>sprint</span></li>
+        </ul>
         <button id="start-button" type="button">Start Breach</button>
         <a href="../arcade/">Back to Agent Game Arcade</a>
       </section>
       <section id="message" aria-live="polite"></section>
-      <section id="crosshair" aria-hidden="true">+</section>
+      <section id="breach-flash" aria-hidden="true"></section>
+      <section id="crosshair" aria-hidden="true"><span></span></section>
     </div>
     <script src="./game.js" type="module"></script>
   </body>

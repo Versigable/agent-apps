@@ -5,11 +5,16 @@ const canvas = document.querySelector('#game-canvas');
 const startButton = document.querySelector('#start-button');
 const overlay = document.querySelector('#overlay');
 const message = document.querySelector('#message');
+const radar = document.querySelector('#radar');
+const threatCount = document.querySelector('#threat-count');
+const weaponStatus = document.querySelector('#weapon-status');
 const hud = {
   health: document.querySelector('#health'),
   score: document.querySelector('#score'),
   wave: document.querySelector('#wave'),
-  heat: document.querySelector('#heat')
+  heat: document.querySelector('#heat'),
+  healthBar: document.querySelector('#health-bar'),
+  heatBar: document.querySelector('#heat-bar')
 };
 
 const state = {
@@ -109,6 +114,7 @@ function startGame() {
   resetGame();
   state.running = true;
   root.dataset.state = 'running';
+  overlay.style.display = '';
   message.textContent = 'Breach live. Clear the drones.';
   canvas.requestPointerLock?.();
   state.clock.getDelta();
@@ -152,13 +158,43 @@ function showDamage(enemy) {
   setTimeout(() => pop.remove(), 700);
 }
 
+function flashBreach() {
+  root.classList.remove('hit');
+  void root.offsetWidth;
+  root.classList.add('hit');
+}
+
+function renderRadar() {
+  if (!radar) return;
+  radar.querySelectorAll('.radar-dot').forEach((dot) => dot.remove());
+  const range = 32;
+  for (const enemy of state.enemies.slice(0, 20)) {
+    const relative = enemy.position.clone().sub(camera.position);
+    const x = THREE.MathUtils.clamp(relative.x / range, -1, 1);
+    const z = THREE.MathUtils.clamp(relative.z / range, -1, 1);
+    const dot = document.createElement('span');
+    dot.className = 'radar-dot';
+    dot.style.left = `${50 + x * 42}%`;
+    dot.style.top = `${50 + z * 42}%`;
+    radar.append(dot);
+  }
+}
+
 function updateHud() {
+  const healthPct = THREE.MathUtils.clamp(state.health / 100, 0, 1);
+  const heatPct = THREE.MathUtils.clamp(state.heat / 100, 0, 1);
   hud.health.textContent = Math.max(0, Math.round(state.health));
   hud.score.textContent = state.score;
   hud.wave.textContent = state.wave;
   hud.heat.textContent = Math.round(state.heat);
+  hud.healthBar.style.transform = `scaleX(${healthPct})`;
+  hud.heatBar.style.transform = `scaleX(${heatPct})`;
+  threatCount.textContent = state.enemies.length;
+  weaponStatus.textContent = state.heat > 92 ? 'VENTING' : state.heat > 70 ? 'HOT' : 'READY';
+  weaponStatus.classList.toggle('overheat', state.heat > 70);
   root.dataset.shotsFired = String(state.shotsFired);
   root.dataset.enemyCount = String(state.enemies.length);
+  renderRadar();
 }
 
 function updateMovement(dt) {
@@ -190,6 +226,7 @@ function updateEnemies(dt) {
       state.lastHit = performance.now();
       state.health -= 12;
       message.textContent = 'Hull breach -12';
+      flashBreach();
       if (state.health <= 0) endGame();
     }
   }
