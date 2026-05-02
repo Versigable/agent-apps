@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "gameId": "signal-salvage",
+  "title": "Signal Salvage",
+  "ratings": {
+    "gameplay": {
+      "rating": 7,
+      "note": "Compact extraction loop with immediate core collection, interference risk, timer pressure, and deterministic win/loss hooks."
+    },
+    "controls": {
+      "rating": 8,
+      "note": "WASD/arrow movement plus pointer drag and F pulse-scan are easy to learn and straightforward to automate."
+    },
+    "visualClarity": {
+      "rating": 8,
+      "note": "High-contrast cyan cores, red hazards, bright drone silhouette, and large HUD readouts support screenshot QA."
+    },
+    "performance": {
+      "rating": 9,
+      "note": "Canvas-only 2D rendering with bounded entity counts should remain lightweight in Playwright and preview captures."
+    },
+    "replayability": {
+      "rating": 7,
+      "note": "Timer survival, increasing difficulty, missed-core signal drain, and pulse-scan timing create a clear arcade improvement loop."
+    },
+    "agentSelfTestQuality": {
+      "rating": 9,
+      "note": "Smoke tests can deterministically start, move, collect, collide, win, verify manifest metadata, and capture artifacts."
+    }
+  }
+}

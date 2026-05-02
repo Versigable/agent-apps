@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-04-30",
+  "updatedAt": "2026-05-02",
   "games": [
     {
       "id": "fps-gauntlet",
@@ -86,6 +86,51 @@
       "artifacts": {
         "latestScreenshot": "./artifacts/test-results/smoke-screenshots/void-garden-latest.png",
         "latestVideo": "./artifacts/videos/void-garden-latest.webm",
+        "latestSummary": "./artifacts/latest-run.json"
+      }
+    },
+    {
+      "id": "signal-salvage",
+      "title": "Signal Salvage",
+      "type": "top-down-arcade",
+      "status": "prototype",
+      "agent": "Merquery + OpenClaw helpers",
+      "model": "gpt-5.5 orchestrator; gemma4/qwen helper lanes",
+      "summary": "A neon top-down extraction game where a salvage drone collects cyan signal cores, dodges red interference, and keeps the uplink alive until the timer hits zero.",
+      "playUrl": "./signal-salvage/",
+      "screenshot": "./artifacts/test-results/smoke-screenshots/signal-salvage-smoke.png",
+      "testCommand": "npm test",
+      "scorecardUrl": "./scorecards/signal-salvage.json",
+      "scorecard": {
+        "gameplay": null,
+        "controls": null,
+        "visualClarity": null,
+        "performance": null,
+        "replayability": null,
+        "agentSelfTest": null
+      },
+      "manualChecklist": [
+        "Start Signal Salvage and confirm the menu explains movement and pulse-scan controls.",
+        "Move with W/A/S/D or arrow keys and confirm the drone stays inside the arena bounds.",
+        "Collect cyan signal cores and confirm score, cores, difficulty, and signal values update.",
+        "Hit or force a red interference sentry and confirm signal damage plus hit counters update.",
+        "Press F near cores and confirm pulse-scan feedback appears.",
+        "Let the timer complete or use the test hook and confirm the extraction win state is readable.",
+        "Confirm smoke screenshot/video artifacts show the arena, HUD, drone, cores, and hazards."
+      ],
+      "nextIdeas": [
+        "Add audio pings for pulse scans, core pickups, interference hits, and extraction complete.",
+        "Add drone upgrade choices between waves: wider pulse, stronger shield, faster thrusters.",
+        "Add local high score and score-per-minute efficiency summary.",
+        "Let future OpenClaw helpers run variant tuning passes using the deterministic test hooks."
+      ],
+      "previewPath": "/games/signal-salvage/",
+      "previewUrl": "https://game-preview.ninjaprivacy.org/games/signal-salvage/",
+      "arcadeUrl": "https://game-preview.ninjaprivacy.org/games/arcade/",
+      "artifactCommand": "npm run artifacts:video -- signal-salvage",
+      "artifacts": {
+        "latestScreenshot": "./artifacts/test-results/smoke-screenshots/signal-salvage-latest.png",
+        "latestVideo": "./artifacts/videos/signal-salvage-latest.webm",
         "latestSummary": "./artifacts/latest-run.json"
       }
     }

@@ -25,9 +25,13 @@ test('agent game arcade loads manifest and exposes fps gauntlet', async ({ page 
   await expect(fpsCard).toBeVisible();
   const voidCard = page.getByTestId('game-card-void-garden');
   await expect(voidCard).toBeVisible();
+  const signalCard = page.getByTestId('game-card-signal-salvage');
+  await expect(signalCard).toBeVisible();
   await expect(page.getByRole('link', { name: /play neon breach/i })).toHaveAttribute('href', '../fps-gauntlet/');
   await expect(page.getByRole('link', { name: /play void garden/i })).toHaveAttribute('href', '../void-garden/');
+  await expect(page.getByRole('link', { name: /play signal salvage/i })).toHaveAttribute('href', '../signal-salvage/');
   await expect(voidCard.getByText(/cursor-haunted greenhouse/i)).toBeVisible();
+  await expect(signalCard.getByText(/salvage drone collects cyan signal cores/i)).toBeVisible();
   await expect(fpsCard.getByText('npm test')).toBeVisible();
   await expect(fpsCard.getByText('Gameplay', { exact: true })).toBeVisible();
   await expect(fpsCard.locator('.score-rating', { hasText: '7/10' }).first()).toBeVisible();
@@ -161,10 +165,95 @@ test('void garden starts, whispers at the cursor, and mutates the specimen log',
   expect(errors).toEqual([]);
 });
 
+
+test('signal salvage starts, collects cores, handles interference, and reaches extraction', async ({ page }) => {
+  const errors = await collectConsoleErrors(page);
+  await page.goto('/games/signal-salvage/');
+  await expect(page.getByRole('heading', { name: 'Signal Salvage' })).toBeVisible();
+  await expect(page.locator('#salvage-canvas')).toBeVisible();
+  await expect(page.getByTestId('signal')).toHaveText('100');
+  await expect(page.getByTestId('score')).toHaveText('0');
+  await expect(page.getByTestId('cores')).toHaveText('0');
+  await expect(page.getByTestId('status')).toContainText(/awaiting/i);
+
+  await page.getByRole('button', { name: /start salvage/i }).click();
+  await expect(page.locator('#game-root')).toHaveAttribute('data-state', 'running');
+
+  await page.keyboard.down('KeyD');
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(250);
+  await page.keyboard.up('KeyD');
+  await page.keyboard.up('KeyW');
+  await page.keyboard.press('KeyF');
+
+  const moved = await page.locator('#game-root').evaluate((root) => ({
+    x: Number(root.getAttribute('data-player-x')),
+    y: Number(root.getAttribute('data-player-y')),
+    event: root.getAttribute('data-last-event')
+  }));
+  expect(moved.x).toBeGreaterThan(640);
+  expect(moved.y).toBeLessThan(520);
+  expect(moved.event).toMatch(/pulse-scan|started/);
+
+  const coresBeforeHook = Number(await page.locator('#game-root').getAttribute('data-cores-collected'));
+  await page.evaluate(() => window.__signalSalvageTest.collectCore());
+  await expect.poll(async () => Number(await page.locator('#game-root').getAttribute('data-cores-collected'))).toBeGreaterThan(coresBeforeHook);
+  await expect(page.getByTestId('score')).toHaveText(/\d+/);
+  const afterCore = await page.locator('#game-root').evaluate((root) => ({
+    score: Number(root.getAttribute('data-score')),
+    difficulty: Number(root.getAttribute('data-difficulty'))
+  }));
+  expect(afterCore.score).toBeGreaterThanOrEqual(100);
+  expect(afterCore.difficulty).toBeGreaterThan(1);
+
+  await page.evaluate(() => window.__signalSalvageTest.forceCollision());
+  const afterHit = await page.locator('#game-root').evaluate((root) => ({
+    hits: Number(root.getAttribute('data-hits')),
+    signal: Number(root.getAttribute('data-signal'))
+  }));
+  expect(afterHit.hits).toBeGreaterThan(0);
+  expect(afterHit.signal).toBeLessThan(100);
+
+  await page.evaluate(() => window.__signalSalvageTest.winRun());
+  await expect(page.locator('#game-root')).toHaveAttribute('data-state', 'won');
+  await expect(page.getByTestId('status')).toContainText(/extraction complete/i);
+  await saveSmokeScreenshot(page, 'signal-salvage-smoke.png');
+  expect(errors).toEqual([]);
+});
+
 test('manifest is valid and has required arcade metadata', async () => {
   const raw = await fs.readFile('games/manifest.json', 'utf8');
   const manifest = JSON.parse(raw);
   expect(manifest.games).toEqual(expect.any(Array));
+  const signalSalvage = manifest.games.find((game) => game.id === 'signal-salvage');
+  expect(signalSalvage).toMatchObject({
+    id: 'signal-salvage',
+    title: 'Signal Salvage',
+    type: 'top-down-arcade',
+    playUrl: './signal-salvage/',
+    testCommand: 'npm test'
+  });
+  expect(signalSalvage.manualChecklist.length).toBeGreaterThanOrEqual(5);
+  expect(signalSalvage.scorecardUrl).toBe('./scorecards/signal-salvage.json');
+  const signalScorecard = JSON.parse(await fs.readFile('games/scorecards/signal-salvage.json', 'utf8'));
+  expect(signalScorecard).toMatchObject({
+    schemaVersion: 1,
+    gameId: 'signal-salvage',
+    ratings: {
+      gameplay: { rating: 7 },
+      controls: { rating: 8 },
+      visualClarity: { rating: 8 },
+      performance: { rating: 9 },
+      replayability: { rating: 7 },
+      agentSelfTestQuality: { rating: 9 }
+    }
+  });
+  for (const entry of Object.values(signalScorecard.ratings)) {
+    expect(entry.rating).toBeGreaterThanOrEqual(0);
+    expect(entry.rating).toBeLessThanOrEqual(10);
+    expect(entry.note.length).toBeGreaterThan(0);
+  }
+
   const voidGarden = manifest.games.find((game) => game.id === 'void-garden');
   expect(voidGarden).toMatchObject({
     id: 'void-garden',

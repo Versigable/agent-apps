@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Signal Salvage</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main
+      id="game-root"
+      data-state="idle"
+      data-signal="100"
+      data-score="0"
+      data-cores-collected="0"
+      data-hits="0"
+      data-hazards="0"
+      data-time-left="60"
+      data-difficulty="1"
+      data-last-event="boot"
+      data-player-x="640"
+      data-player-y="520"
+    >
+      <canvas id="salvage-canvas" width="1280" height="720" aria-label="Signal Salvage playable stage"></canvas>
+      <section id="hud" aria-label="Signal Salvage HUD">
+        <div><span>Signal</span><strong id="signal" data-testid="signal">100</strong></div>
+        <div><span>Score</span><strong id="score" data-testid="score">0</strong></div>
+        <div><span>Cores</span><strong id="cores" data-testid="cores">0</strong></div>
+        <div><span>Time</span><strong id="timer" data-testid="timer">60</strong></div>
+      </section>
+      <section id="overlay" class="panel">
+        <p class="eyebrow">agent game arcade · top-down salvage</p>
+        <h1>Signal Salvage</h1>
+        <p>
+          Pilot a neon recovery drone through a collapsing signal field. Grab cyan cores,
+          dodge red interference sentries, and keep the uplink alive until extraction.
+        </p>
+        <p class="controls">Move with <kbd>W/A/S/D</kbd> or arrow keys. Press <kbd>F</kbd> to pulse-scan nearby cores.</p>
+        <button id="start-button" type="button">Start Salvage</button>
+        <a href="../arcade/">Back to Agent Game Arcade</a>
+      </section>
+      <aside id="status-panel" data-testid="status" aria-live="polite">Awaiting salvage authorization.</aside>
+    </main>
+    <script src="./game.js" type="module"></script>
+  </body>
+</html>
