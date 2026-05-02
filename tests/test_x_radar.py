@@ -4,7 +4,7 @@ import pytest
 
 from x_radar.models import Metrics, Post
 from x_radar.rank import is_low_signal, score_post, rank_posts
-from x_radar.render import render_digest
+from x_radar.render import render_digest, render_learning_digest
 from x_radar.collect import (
     XApiError,
     build_search_query,
@@ -24,6 +24,37 @@ def test_cli_writes_digest_file_with_monkeypatched_collector(tmp_path, monkeypat
     out = tmp_path / "digest.md"
     assert main(["--limit", "3", "--out", str(out)]) == 0
     assert "X Radar" in out.read_text()
+
+
+def test_cli_account_option_focuses_collection_on_one_account(tmp_path, monkeypatch):
+    seen = {}
+    now = datetime(2026, 4, 24, 20, 0, tzinfo=timezone.utc)
+    sample = [Post(id="1", text="OpenClaw and AI agents", author_username="steipete", author_name="Peter Steinberger", created_at=now, url="https://x.com/steipete/status/1", topic="OpenClaw", metrics=Metrics(likes=100))]
+
+    def fake_collect(config):
+        seen["source_accounts"] = config.source_accounts
+        seen["legacy_accounts"] = config.legacy_accounts
+        seen["per_account_limit"] = config.per_account_limit
+        return sample
+
+    monkeypatch.setattr("x_radar.cli.collect_posts", fake_collect)
+    out = tmp_path / "peter.md"
+    assert main(["--account", "@steipete", "--limit", "3", "--out", str(out)]) == 0
+    assert seen == {"source_accounts": ["steipete"], "legacy_accounts": ["steipete"], "per_account_limit": 8}
+    assert "@steipete" in out.read_text()
+
+
+def test_cli_learning_digest_uses_learning_template(tmp_path, monkeypatch):
+    now = datetime(2026, 4, 24, 20, 0, tzinfo=timezone.utc)
+    sample = [Post(id="1", text="Start with a CLI so agents can verify output", author_username="steipete", author_name="Peter Steinberger", created_at=now, url="https://x.com/steipete/status/1", topic="AI agents", metrics=Metrics(likes=100))]
+    monkeypatch.setattr("x_radar.cli.collect_posts", lambda config: sample)
+    out = tmp_path / "learning.md"
+    assert main(["--account", "steipete", "--learning-digest", "--out", str(out)]) == 0
+    digest = out.read_text()
+    assert "High-Signal Learning Radar" in digest
+    assert "What happened" in digest
+    assert "OpenClaw implication" in digest
+    assert "Disposition" in digest
 
 
 def test_cli_rejects_invalid_max_chars():
@@ -197,3 +228,16 @@ def test_render_digest_includes_required_fields_and_length_guard():
     assert "Why it matters" in digest
     assert "Suggested angle" in digest
     assert len(digest) <= 1200
+
+
+def test_render_learning_digest_uses_source_learning_format():
+    now = datetime(2026, 4, 24, 20, 0, tzinfo=timezone.utc)
+    posts = [Post(id="1", text="Start with the model and a CLI first so agents can verify output", author_username="steipete", author_name="Peter Steinberger", created_at=now, url="https://x.com/steipete/status/1", topic="AI agents", metrics=Metrics(replies=5, reposts=10, likes=100, quotes=2, bookmarks=20, views=5000))]
+    digest = render_learning_digest(posts, generated_at=now, max_chars=1600)
+    assert "High-Signal Learning Radar" in digest
+    assert "@steipete" in digest
+    assert "What happened" in digest
+    assert "Why it matters" in digest
+    assert "OpenClaw implication" in digest
+    assert "Disposition" in digest
+    assert len(digest) <= 1600

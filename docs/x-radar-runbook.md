@@ -6,6 +6,14 @@ Generate a read-only digest locally:
 python3 scripts/run_x_radar.py --limit 5 --out /tmp/x-radar-digest.md
 ```
 
+Generate a source-specific learning digest, e.g. Peter Steinberger / `@steipete`:
+
+```bash
+python3 scripts/run_x_radar.py --account steipete --learning-digest --limit 5 --max-chars 5000 --out /tmp/steipete-learning-digest.md
+```
+
+`--account` focuses both official recent search and legacy timeline fallback on one X handle. `--learning-digest` switches from reply/engagement angles to the source-learning template: what happened, why it matters, OpenClaw implication, and disposition.
+
 ## Official X API search
 
 X Radar prefers direct official X API recent search when `X_BEARER_TOKEN` is present in the process environment. It calls:
