@@ -36,6 +36,11 @@ def test_build_search_query_quotes_phrases_and_excludes_retweets():
     assert query == '(OpenClaw OR "AI agents" OR "X API") lang:en -is:retweet'
 
 
+def test_build_search_query_can_focus_curated_source_accounts():
+    query = build_search_query(["AI agents", "Claude Code"], source_accounts=["AlexFinn", "@steipete", "bad-handle"])
+    assert query == '(from:AlexFinn OR from:steipete) ("AI agents" OR "Claude Code") lang:en -is:retweet'
+
+
 def test_parse_x_api_search_response_normalizes_expanded_users():
     payload = {
         "data": [
@@ -89,7 +94,7 @@ def test_collect_with_x_api_sends_bearer_auth_without_leaking_token(monkeypatch)
 def test_collect_posts_prefers_x_api_when_env_token_exists(monkeypatch):
     sample = [Post(id="1", text="OpenClaw X API", author_username="a", author_name="A", created_at=datetime.now(timezone.utc), url="u", topic="OpenClaw", metrics=Metrics())]
     monkeypatch.setenv("X_BEARER_TOKEN", "token")
-    monkeypatch.setattr("x_radar.collect.collect_with_x_api", lambda token, topics, max_results: sample)
+    monkeypatch.setattr("x_radar.collect.collect_with_x_api", lambda token, topics, max_results, source_accounts=(): sample)
     monkeypatch.setattr("x_radar.collect.collect_with_legacy_xurl", lambda config: [])
     assert collect_posts() == sample
 
@@ -97,7 +102,7 @@ def test_collect_posts_prefers_x_api_when_env_token_exists(monkeypatch):
 def test_collect_posts_falls_back_to_legacy_when_x_api_errors(monkeypatch):
     sample = [Post(id="1", text="OpenClaw X API", author_username="a", author_name="A", created_at=datetime.now(timezone.utc), url="u", topic="OpenClaw", metrics=Metrics())]
     monkeypatch.setenv("X_BEARER_TOKEN", "token")
-    monkeypatch.setattr("x_radar.collect.collect_with_x_api", lambda token, topics, max_results: (_ for _ in ()).throw(XApiError("boom")))
+    monkeypatch.setattr("x_radar.collect.collect_with_x_api", lambda token, topics, max_results, source_accounts=(): (_ for _ in ()).throw(XApiError("boom")))
     monkeypatch.setattr("x_radar.collect.detect_legacy_xurl", lambda: True)
     monkeypatch.setattr("x_radar.collect.collect_with_legacy_xurl", lambda config: sample)
     assert collect_posts() == sample

@@ -102,7 +102,7 @@ def _best_topic_for_text(text: str, topics: Iterable[str]) -> str | None:
     return best_topic
 
 
-def build_search_query(topics: Iterable[str]) -> str:
+def _topic_clause(topics: Iterable[str]) -> str:
     clauses: list[str] = []
     for topic in topics:
         topic = topic.strip()
@@ -115,7 +115,29 @@ def build_search_query(topics: Iterable[str]) -> str:
             clauses.append(topic)
     if not clauses:
         raise ValueError("at least one X Radar topic is required")
-    return f"({' OR '.join(clauses)}) lang:en -is:retweet"
+    return f"({' OR '.join(clauses)})"
+
+
+def _account_clause(accounts: Iterable[str]) -> str | None:
+    clauses: list[str] = []
+    for account in accounts:
+        handle = account.strip().removeprefix("@")
+        if not handle:
+            continue
+        if not all(ch.isalnum() or ch == "_" for ch in handle):
+            continue
+        clauses.append(f"from:{handle}")
+    if not clauses:
+        return None
+    return f"({' OR '.join(clauses)})"
+
+
+def build_search_query(topics: Iterable[str], source_accounts: Iterable[str] = ()) -> str:
+    topics_part = _topic_clause(topics)
+    accounts_part = _account_clause(source_accounts)
+    if accounts_part:
+        return f"{accounts_part} {topics_part} lang:en -is:retweet"
+    return f"{topics_part} lang:en -is:retweet"
 
 
 def parse_x_api_search_response(payload: dict[str, Any], topics: Iterable[str]) -> list[Post]:
@@ -157,13 +179,18 @@ def parse_x_api_search_response(payload: dict[str, Any], topics: Iterable[str]) 
     return posts
 
 
-def collect_with_x_api(bearer_token: str, topics: Iterable[str], max_results: int = 25) -> list[Post]:
+def collect_with_x_api(
+    bearer_token: str,
+    topics: Iterable[str],
+    max_results: int = 25,
+    source_accounts: Iterable[str] = (),
+) -> list[Post]:
     token = bearer_token.strip()
     if not token:
         raise XApiError("X_BEARER_TOKEN is empty")
     bounded_max = max(10, min(max_results, 100))
     params = {
-        "query": build_search_query(topics),
+        "query": build_search_query(topics, source_accounts=source_accounts),
         "max_results": str(bounded_max),
         "sort_order": "recency",
         "tweet.fields": "created_at,public_metrics,author_id,lang,conversation_id",
@@ -222,7 +249,12 @@ def collect_posts(config: RadarConfig | None = None) -> list[Post]:
     bearer_token = os.environ.get("X_BEARER_TOKEN", "").strip()
     if bearer_token:
         try:
-            return collect_with_x_api(bearer_token, topics=config.topics, max_results=max(10, config.per_account_limit * len(config.legacy_accounts)))
+            return collect_with_x_api(
+                bearer_token,
+                topics=config.topics,
+                max_results=max(10, config.per_account_limit * len(config.source_accounts)),
+                source_accounts=config.source_accounts,
+            )
         except XApiError:
             if not detect_legacy_xurl():
                 raise
