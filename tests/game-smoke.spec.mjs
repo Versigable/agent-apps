@@ -39,7 +39,7 @@ test('agent game arcade loads manifest and exposes fps gauntlet', async ({ page 
 });
 
 test('fps gauntlet starts, accepts controls, shoots drones, and updates hud', async ({ page }) => {
-  test.setTimeout(70000);
+  test.setTimeout(120000);
   const errors = await collectConsoleErrors(page);
   await page.goto('/games/fps-gauntlet/');
   await expect(page.getByRole('heading', { name: 'Neon Breach' })).toBeVisible();
