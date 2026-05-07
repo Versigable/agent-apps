@@ -92,6 +92,7 @@ test('preview service exposes health and denies repo-private paths', async ({ re
   });
 
   await expect((await request.get('/games/manifest.json')).status()).toBe(200);
+  await expect((await request.get('/apps/manifest.json')).status()).toBe(200);
   await expect((await request.get('/node_modules/three/build/three.module.js')).status()).toBe(200);
 
   for (const privatePath of ['/.git/config', '/package.json', '/scripts/preview-service.mjs', '/.env']) {
@@ -109,24 +110,48 @@ test('arcade renders one-click preview and artifact actions', async ({ page }) =
   await expect(card.getByText('Latest video artifact')).toBeVisible();
 });
 
+test('app preview dashboard renders registered operator apps', async ({ page }) => {
+  await page.goto('/apps/');
+  await expect(page.getByRole('heading', { name: 'Agent App Dock' })).toBeVisible();
+  await expect(page.getByText('Operator app preview surface')).toBeVisible();
+  await expect(page.getByText('4175')).toBeVisible();
+  const card = page.getByTestId('app-card-kanban');
+  await expect(card.getByRole('link', { name: /open hermes kanban board/i })).toHaveAttribute('href', './kanban/');
+  await expect(card.getByRole('link', { name: /health check for hermes kanban board/i })).toHaveAttribute('href', '/api/kanban/health');
+  await expect(card.getByText('Read-only by default')).toBeVisible();
+  await expect(card.getByText('No dispatcher button')).toBeVisible();
+});
+
 test('preview surface mode separates app-preview from game-preview routes', async () => {
   await withPreviewSurface('apps', 4195, async (baseUrl) => {
     const appHealth = await (await fetch(`${baseUrl}/healthz`)).json();
-    expect(appHealth).toMatchObject({ surface: 'apps', kanbanUrl: `${baseUrl}/apps/kanban/` });
+    expect(appHealth).toMatchObject({
+      surface: 'apps',
+      appDashboardUrl: `${baseUrl}/apps/`,
+      kanbanUrl: `${baseUrl}/apps/kanban/`
+    });
     expect(appHealth).not.toHaveProperty('arcadeUrl');
     expect(appHealth).not.toHaveProperty('manifestUrl');
+    expect((await fetch(`${baseUrl}/`, { redirect: 'manual' })).headers.get('location')).toBe('/apps/');
+    expect((await fetch(`${baseUrl}/apps`, { redirect: 'manual' })).status).toBe(308);
+    expect((await fetch(`${baseUrl}/apps/`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/apps/manifest.json`)).status).toBe(200);
     expect((await fetch(`${baseUrl}/apps/kanban/`)).status).toBe(200);
     expect((await fetch(`${baseUrl}/api/kanban/health`)).status).toBe(200);
     expect((await fetch(`${baseUrl}/games/arcade/`)).status).toBe(403);
     expect((await fetch(`${baseUrl}/games/manifest.json`)).status).toBe(403);
+    expect((await fetch(`${baseUrl}/__preview/manifest`)).status).toBe(403);
   });
 
   await withPreviewSurface('games', 4196, async (baseUrl) => {
     const gameHealth = await (await fetch(`${baseUrl}/healthz`)).json();
     expect(gameHealth).toMatchObject({ surface: 'games', arcadeUrl: `${baseUrl}/games/arcade/` });
+    expect(gameHealth).not.toHaveProperty('appDashboardUrl');
     expect(gameHealth).not.toHaveProperty('kanbanUrl');
     expect((await fetch(`${baseUrl}/games/arcade/`)).status).toBe(200);
     expect((await fetch(`${baseUrl}/games/manifest.json`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/__preview/manifest`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/apps/`)).status).toBe(403);
     expect((await fetch(`${baseUrl}/apps/kanban/`)).status).toBe(403);
     expect((await fetch(`${baseUrl}/api/kanban/health`)).status).toBe(403);
   });

@@ -8,7 +8,7 @@ Monorepo for agent-developed applications, utilities, and browser-playable exper
 
 Read-safe web board for local Hermes Kanban lives under [`apps/kanban/`](./apps/kanban/) and is served by the preview service at `/apps/kanban/`. The first milestone intentionally locks dispatcher and `ready` promotion controls until the operator workflow is approved.
 
-Operator apps should be exposed through the app preview surface, not the game preview surface. The persistent app-preview service listens on port `4175` and is intended for `https://app-preview.ninjaprivacy.org/apps/kanban/` once Traefik routes that hostname to OpenClaw port `4175`.
+Operator apps should be exposed through the app preview surface, not the game preview surface. The persistent app-preview service listens on port `4175` and is intended for `https://app-preview.ninjaprivacy.org/apps/` once Traefik routes that hostname to OpenClaw port `4175`. The app dashboard mirrors the game arcade launcher at [`apps/`](./apps/) with its own operator-control flair and links to `/apps/kanban/`.
 
 ### X Radar
 
@@ -64,6 +64,12 @@ Internal preview URL:
 
 ```text
 http://100.104.27.125:4173/games/arcade/
+```
+
+App preview dashboard URL after Traefik targets OpenClaw port `4175`:
+
+```text
+https://app-preview.ninjaprivacy.org/apps/
 ```
 
 For boot-persistent hosting as the `merquery` user:

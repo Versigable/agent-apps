@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agent App Dock</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero" aria-labelledby="dock-title">
+        <div class="orb orb-one" aria-hidden="true"></div>
+        <div class="orb orb-two" aria-hidden="true"></div>
+        <p class="eyebrow">Operator app preview surface</p>
+        <h1 id="dock-title">Agent App Dock</h1>
+        <p class="lede">
+          A clean launch deck for Hermes-facing operator apps: workflow boards, control panels,
+          and future agent tools that belong under app-preview instead of the game arcade.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="./kanban/">Open Kanban</a>
+          <a class="button secondary" href="/healthz">Surface health</a>
+        </div>
+      </section>
+
+      <section class="status-strip" aria-label="App preview service posture">
+        <article>
+          <span class="metric">4175</span>
+          <span class="label">persistent app-preview port</span>
+        </article>
+        <article>
+          <span class="metric">apps</span>
+          <span class="label">PREVIEW_SURFACE</span>
+        </article>
+        <article>
+          <span class="metric">read-only</span>
+          <span class="label">default operator posture</span>
+        </article>
+      </section>
+
+      <section class="ops-panel" aria-label="App-preview workflow">
+        <div>
+          <p class="eyebrow small">Boundary</p>
+          <h2>Apps live here. Games stay in the arcade.</h2>
+        </div>
+        <ol>
+          <li>Build operator apps under <code>apps/&lt;id&gt;/</code>.</li>
+          <li>Register public app metadata in <code>apps/manifest.json</code>.</li>
+          <li>Serve through the constrained app-preview allowlist.</li>
+          <li>Use narrow app bridges for live data; never expose full local repo or Hermes plugin APIs.</li>
+        </ol>
+      </section>
+
+      <section>
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow small">Launchpad</p>
+            <h2>Operator apps</h2>
+          </div>
+          <span id="status" role="status">Loading app registry…</span>
+        </div>
+        <div id="apps" class="app-grid" aria-live="polite"></div>
+      </section>
+    </main>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

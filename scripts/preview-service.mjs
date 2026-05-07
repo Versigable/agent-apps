@@ -54,6 +54,7 @@ function healthPayload() {
     payload.manifestUrl = `${publicBaseUrl}/games/manifest.json`;
   }
   if (servesApps()) {
+    payload.appDashboardUrl = `${publicBaseUrl}/apps/`;
     payload.kanbanUrl = `${publicBaseUrl}/apps/kanban/`;
   }
   return payload;
@@ -68,8 +69,8 @@ function safeStaticPath(urlPath) {
     || normalized === 'games'
     || normalized.startsWith('node_modules/three/build/')
   )) || (servesApps() && (
-    normalized.startsWith('apps/kanban/')
-    || normalized === 'apps/kanban'
+    normalized.startsWith('apps/')
+    || normalized === 'apps'
   ));
   const hasPrivateSegment = normalized.split(/[\\/]+/).some((segment) => segment.startsWith('.'));
   if (!allowed || hasPrivateSegment) return null;
@@ -107,7 +108,11 @@ async function handler(req, res) {
     return handleKanbanRequest(req, res, { repoRoot });
   }
   if (url.pathname === '/') {
-    res.writeHead(302, { location: servesApps() && !servesGames() ? '/apps/kanban/' : '/games/arcade/' });
+    res.writeHead(302, { location: servesApps() && !servesGames() ? '/apps/' : '/games/arcade/' });
+    return res.end();
+  }
+  if (servesApps() && url.pathname === '/apps') {
+    res.writeHead(308, { location: '/apps/' });
     return res.end();
   }
   if (servesApps() && url.pathname === '/apps/kanban') {
@@ -118,6 +123,7 @@ async function handler(req, res) {
     return sendJson(res, 200, healthPayload());
   }
   if (url.pathname === '/__preview/manifest') {
+    if (!servesGames()) return sendJson(res, 403, { error: 'forbidden' });
     const manifest = JSON.parse(await fs.readFile(path.join(repoRoot, 'games/manifest.json'), 'utf8'));
     return sendJson(res, 200, { ...manifest, resolvedAt: new Date().toISOString() });
   }
@@ -142,6 +148,7 @@ if (process.argv.includes('--healthcheck')) {
   server.listen(port, host, () => {
     console.log(`agent-apps-preview listening on http://${host}:${port}`);
     if (servesGames()) console.log(`Arcade: ${publicBaseUrl}/games/arcade/`);
+    if (servesApps()) console.log(`App dock: ${publicBaseUrl}/apps/`);
     if (servesApps()) console.log(`Kanban: ${publicBaseUrl}/apps/kanban/`);
   });
 }
