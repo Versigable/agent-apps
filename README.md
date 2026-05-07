@@ -8,6 +8,8 @@ Monorepo for agent-developed applications, utilities, and browser-playable exper
 
 Read-safe web board for local Hermes Kanban lives under [`apps/kanban/`](./apps/kanban/) and is served by the preview service at `/apps/kanban/`. The first milestone intentionally locks dispatcher and `ready` promotion controls until the operator workflow is approved.
 
+Operator apps should be exposed through the app preview surface, not the game preview surface. The persistent app-preview service listens on port `4175` and is intended for `https://app-preview.ninjaprivacy.org/apps/kanban/` once Traefik routes that hostname to OpenClaw port `4175`.
+
 ### X Radar
 
 Read-only X/Twitter trend radar utilities used by the scheduled Discord digest workflow.
@@ -71,6 +73,14 @@ scripts/install-preview-service.sh
 ```
 
 The tracked user unit lives at `deploy/systemd/user/agent-apps-preview.service`.
+
+For boot-persistent operator app hosting as the `merquery` user:
+
+```bash
+scripts/install-app-preview-service.sh
+```
+
+The app preview user unit lives at `deploy/systemd/user/agent-app-preview.service` and listens on port `4175` with `PREVIEW_SURFACE=apps`. This keeps app previews independently targetable from game previews on port `4173` with `PREVIEW_SURFACE=games`.
 
 ## Video artifact workflow
 

@@ -10,6 +10,15 @@ const repoRoot = path.resolve(__dirname, '..');
 const host = process.env.PREVIEW_HOST || '0.0.0.0';
 const port = Number(process.env.PREVIEW_PORT || 4173);
 const publicBaseUrl = process.env.PREVIEW_PUBLIC_URL || `http://100.104.27.125:${port}`;
+const previewSurface = process.env.PREVIEW_SURFACE || 'all';
+
+function servesGames() {
+  return previewSurface === 'all' || previewSurface === 'games';
+}
+
+function servesApps() {
+  return previewSurface === 'all' || previewSurface === 'apps';
+}
 
 const mimeTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -38,11 +47,14 @@ function safeStaticPath(urlPath) {
   const decodedPath = decodeURIComponent(urlPath.split('?')[0]);
   const normalized = path.normalize(decodedPath).replace(/^[/\\]+/, '');
 
-  const allowed = normalized.startsWith('games/')
+  const allowed = (servesGames() && (
+    normalized.startsWith('games/')
     || normalized === 'games'
-    || normalized.startsWith('apps/kanban/')
+    || normalized.startsWith('node_modules/three/build/')
+  )) || (servesApps() && (
+    normalized.startsWith('apps/kanban/')
     || normalized === 'apps/kanban'
-    || normalized.startsWith('node_modules/three/build/');
+  ));
   const hasPrivateSegment = normalized.split(/[\\/]+/).some((segment) => segment.startsWith('.'));
   if (!allowed || hasPrivateSegment) return null;
 
@@ -75,14 +87,14 @@ async function serveStatic(req, res) {
 
 async function handler(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  if (url.pathname.startsWith('/api/kanban/')) {
+  if (servesApps() && url.pathname.startsWith('/api/kanban/')) {
     return handleKanbanRequest(req, res, { repoRoot });
   }
   if (url.pathname === '/') {
-    res.writeHead(302, { location: '/games/arcade/' });
+    res.writeHead(302, { location: servesApps() && !servesGames() ? '/apps/kanban/' : '/games/arcade/' });
     return res.end();
   }
-  if (url.pathname === '/apps/kanban') {
+  if (servesApps() && url.pathname === '/apps/kanban') {
     res.writeHead(308, { location: '/apps/kanban/' });
     return res.end();
   }
@@ -90,7 +102,9 @@ async function handler(req, res) {
     return sendJson(res, 200, {
       ok: true,
       service: 'agent-apps-preview',
+      surface: previewSurface,
       arcadeUrl: `${publicBaseUrl}/games/arcade/`,
+      kanbanUrl: `${publicBaseUrl}/apps/kanban/`,
       manifestUrl: `${publicBaseUrl}/games/manifest.json`
     });
   }

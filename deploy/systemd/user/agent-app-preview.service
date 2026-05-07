@@ -1,5 +1,5 @@
 [Unit]
-Description=Agent Apps internal homelab preview service
+Description=Agent Apps operator app homelab preview service
 After=network-online.target
 Wants=network-online.target
 
@@ -7,9 +7,9 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=/home/merquery/repos/agent-apps
 Environment=PREVIEW_HOST=0.0.0.0
-Environment=PREVIEW_PORT=4173
-Environment=PREVIEW_PUBLIC_URL=https://game-preview.ninjaprivacy.org
-Environment=PREVIEW_SURFACE=games
+Environment=PREVIEW_PORT=4175
+Environment=PREVIEW_PUBLIC_URL=https://app-preview.ninjaprivacy.org
+Environment=PREVIEW_SURFACE=apps
 Environment=HERMES_BIN=/home/merquery/.local/bin/hermes
 ExecStart=/usr/bin/env npm run serve:preview
 Restart=on-failure
