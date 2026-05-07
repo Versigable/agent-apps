@@ -82,6 +82,10 @@ async function handler(req, res) {
     res.writeHead(302, { location: '/games/arcade/' });
     return res.end();
   }
+  if (url.pathname === '/apps/kanban') {
+    res.writeHead(308, { location: '/apps/kanban/' });
+    return res.end();
+  }
   if (url.pathname === '/healthz') {
     return sendJson(res, 200, {
       ok: true,

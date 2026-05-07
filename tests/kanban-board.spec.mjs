@@ -9,7 +9,7 @@ test('kanban operator app loads fixture board in read-only safe mode', async ({ 
   });
   page.on('pageerror', (error) => consoleErrors.push(error.message));
 
-  await page.goto('/apps/kanban/');
+  await page.goto('/apps/kanban');
   await expect(page.getByRole('heading', { name: 'Hermes Kanban Board' })).toBeVisible();
   await expect(page.getByTestId('safety-banner')).toContainText(/read-only/i);
   await expect(page.getByTestId('safety-banner')).toContainText(/ready promotion and dispatcher controls are locked/i);
@@ -65,6 +65,10 @@ test('kanban bridge exposes fixture board without dispatcher controls', async ({
 });
 
 test('preview service serves kanban app assets while denying private and bridge source paths', async ({ request }) => {
+  const noSlash = await request.get('/apps/kanban', { maxRedirects: 0 });
+  expect(noSlash.status()).toBe(308);
+  expect(noSlash.headers().location).toBe('/apps/kanban/');
+
   await expect((await request.get('/apps/kanban/')).status()).toBe(200);
   await expect((await request.get('/apps/kanban/app.js')).status()).toBe(200);
   await expect((await request.get('/apps/kanban/styles.css')).status()).toBe(200);
