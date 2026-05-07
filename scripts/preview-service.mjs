@@ -43,6 +43,22 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload, null, 2));
 }
 
+function healthPayload() {
+  const payload = {
+    ok: true,
+    service: 'agent-apps-preview',
+    surface: previewSurface
+  };
+  if (servesGames()) {
+    payload.arcadeUrl = `${publicBaseUrl}/games/arcade/`;
+    payload.manifestUrl = `${publicBaseUrl}/games/manifest.json`;
+  }
+  if (servesApps()) {
+    payload.kanbanUrl = `${publicBaseUrl}/apps/kanban/`;
+  }
+  return payload;
+}
+
 function safeStaticPath(urlPath) {
   const decodedPath = decodeURIComponent(urlPath.split('?')[0]);
   const normalized = path.normalize(decodedPath).replace(/^[/\\]+/, '');
@@ -99,14 +115,7 @@ async function handler(req, res) {
     return res.end();
   }
   if (url.pathname === '/healthz') {
-    return sendJson(res, 200, {
-      ok: true,
-      service: 'agent-apps-preview',
-      surface: previewSurface,
-      arcadeUrl: `${publicBaseUrl}/games/arcade/`,
-      kanbanUrl: `${publicBaseUrl}/apps/kanban/`,
-      manifestUrl: `${publicBaseUrl}/games/manifest.json`
-    });
+    return sendJson(res, 200, healthPayload());
   }
   if (url.pathname === '/__preview/manifest') {
     const manifest = JSON.parse(await fs.readFile(path.join(repoRoot, 'games/manifest.json'), 'utf8'));
@@ -132,6 +141,7 @@ if (process.argv.includes('--healthcheck')) {
   const server = http.createServer((req, res) => handler(req, res).catch((error) => sendJson(res, 500, { error: error.message })));
   server.listen(port, host, () => {
     console.log(`agent-apps-preview listening on http://${host}:${port}`);
-    console.log(`Arcade: ${publicBaseUrl}/games/arcade/`);
+    if (servesGames()) console.log(`Arcade: ${publicBaseUrl}/games/arcade/`);
+    if (servesApps()) console.log(`Kanban: ${publicBaseUrl}/apps/kanban/`);
   });
 }

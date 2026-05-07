@@ -111,7 +111,10 @@ test('arcade renders one-click preview and artifact actions', async ({ page }) =
 
 test('preview surface mode separates app-preview from game-preview routes', async () => {
   await withPreviewSurface('apps', 4195, async (baseUrl) => {
-    await expect((await fetch(`${baseUrl}/healthz`)).json()).resolves.toMatchObject({ surface: 'apps' });
+    const appHealth = await (await fetch(`${baseUrl}/healthz`)).json();
+    expect(appHealth).toMatchObject({ surface: 'apps', kanbanUrl: `${baseUrl}/apps/kanban/` });
+    expect(appHealth).not.toHaveProperty('arcadeUrl');
+    expect(appHealth).not.toHaveProperty('manifestUrl');
     expect((await fetch(`${baseUrl}/apps/kanban/`)).status).toBe(200);
     expect((await fetch(`${baseUrl}/api/kanban/health`)).status).toBe(200);
     expect((await fetch(`${baseUrl}/games/arcade/`)).status).toBe(403);
@@ -119,7 +122,9 @@ test('preview surface mode separates app-preview from game-preview routes', asyn
   });
 
   await withPreviewSurface('games', 4196, async (baseUrl) => {
-    await expect((await fetch(`${baseUrl}/healthz`)).json()).resolves.toMatchObject({ surface: 'games' });
+    const gameHealth = await (await fetch(`${baseUrl}/healthz`)).json();
+    expect(gameHealth).toMatchObject({ surface: 'games', arcadeUrl: `${baseUrl}/games/arcade/` });
+    expect(gameHealth).not.toHaveProperty('kanbanUrl');
     expect((await fetch(`${baseUrl}/games/arcade/`)).status).toBe(200);
     expect((await fetch(`${baseUrl}/games/manifest.json`)).status).toBe(200);
     expect((await fetch(`${baseUrl}/apps/kanban/`)).status).toBe(403);
