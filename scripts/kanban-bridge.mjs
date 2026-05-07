@@ -95,8 +95,12 @@ async function fixtureBoard(repoRoot, board) {
   return normalizeBoard(payload, board, 'fixture');
 }
 
+function hermesBin() {
+  return process.env.HERMES_BIN || path.join(process.env.HOME || '/home/merquery', '.local', 'bin', 'hermes');
+}
+
 async function liveBoard(board) {
-  const { stdout } = await execFileAsync('hermes', ['kanban', '--board', board, 'list', '--json'], {
+  const { stdout } = await execFileAsync(hermesBin(), ['kanban', '--board', board, 'list', '--json'], {
     timeout: 10_000,
     maxBuffer: 1024 * 1024,
     env: { ...process.env }
