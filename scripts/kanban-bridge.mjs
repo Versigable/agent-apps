@@ -25,9 +25,24 @@ function safeBoardName(value) {
   return board;
 }
 
+function safeSlug(value, field = 'slug') {
+  const slug = String(value || '').trim();
+  if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(slug)) {
+    const error = new Error(`invalid ${field}`);
+    error.statusCode = 400;
+    throw error;
+  }
+  return slug;
+}
+
+function optionalSlug(value, field) {
+  if (value === undefined || value === null || value === '') return null;
+  return safeSlug(value, field);
+}
+
 function safeTaskId(value) {
   const id = String(value || '');
-  if (!/^[a-zA-Z0-9_.:-]{1,160}$/.test(id)) {
+  if (!/^[a-zA-Z0-9_.:_-]{1,160}$/.test(id)) {
     const error = new Error('invalid task id');
     error.statusCode = 400;
     throw error;
@@ -211,6 +226,96 @@ async function fixtureBoard(repoRoot, board) {
   return normalizeBoard(payload, board, 'fixture');
 }
 
+async function fixtureBoards(repoRoot, currentBoard = 'default') {
+  const payload = await readFixturePayload(repoRoot);
+  const boards = Array.isArray(payload.boards) ? payload.boards : [
+    { slug: 'default', name: 'Default', is_current: currentBoard === 'default', total: normalizeBoard(payload, 'default', 'fixture').summary.total },
+    { slug: 'agent-apps', name: 'Agent Apps', description: 'Fixture secondary board', is_current: currentBoard === 'agent-apps', total: 0 }
+  ];
+  return {
+    currentBoard,
+    mode: 'fixture',
+    readOnly: readOnlyMode(),
+    writesEnabled: writesEnabled(),
+    boards: boards.map((item) => sanitizeBoard(item, currentBoard))
+  };
+}
+
+async function fixtureAssignees(repoRoot) {
+  const payload = await readFixturePayload(repoRoot);
+  const names = new Set(Array.isArray(payload.assignees) ? payload.assignees : []);
+  return {
+    mode: 'fixture',
+    assignees: ['default', ...[...names].sort()].map((name) => ({
+      name,
+      on_disk: name === 'default',
+      source: name === 'default' ? 'profile' : 'fixture-board',
+      counts: {}
+    }))
+  };
+}
+
+function sanitizeBoard(item, currentBoard = 'default') {
+  const slug = item.slug || item.board || 'default';
+  const counts = item.counts && typeof item.counts === 'object' ? Object.fromEntries(Object.entries(item.counts).filter(([key]) => BOARD_COLUMNS.includes(key) || key === 'archived')) : {};
+  return {
+    slug,
+    name: item.name || slug,
+    description: item.description || '',
+    icon: item.icon || '',
+    color: item.color || '',
+    archived: Boolean(item.archived),
+    is_current: Boolean(item.is_current || slug === currentBoard),
+    counts,
+    total: Number(item.total || Object.values(counts).reduce((sum, value) => sum + Number(value || 0), 0))
+  };
+}
+
+async function liveBoards(currentBoard) {
+  const stdout = await runHermesRaw(['kanban', 'boards', 'list', '--json']);
+  const boards = JSON.parse(stdout || '[]');
+  return {
+    currentBoard,
+    mode: 'live',
+    readOnly: readOnlyMode(),
+    writesEnabled: writesEnabled(),
+    boards: (Array.isArray(boards) ? boards : []).map((item) => sanitizeBoard(item, currentBoard))
+  };
+}
+
+async function liveAssignees() {
+  const stdout = await runHermesRaw(['kanban', 'assignees', '--json']);
+  const assignees = JSON.parse(stdout || '[]');
+  return {
+    mode: 'live',
+    assignees: (Array.isArray(assignees) ? assignees : []).map((item) => ({
+      name: item.name,
+      on_disk: Boolean(item.on_disk),
+      counts: item.counts && typeof item.counts === 'object' ? item.counts : {}
+    })).filter((item) => item.name)
+  };
+}
+
+async function loadBoards(repoRoot, currentBoard) {
+  if (resolveMode() === 'fixture') return fixtureBoards(repoRoot, currentBoard);
+  try {
+    return await liveBoards(currentBoard);
+  } catch (error) {
+    if ((process.env.KANBAN_LIVE_FALLBACK || 'fixture') === 'none') throw error;
+    return fixtureBoards(repoRoot, currentBoard);
+  }
+}
+
+async function loadAssignees(repoRoot) {
+  if (resolveMode() === 'fixture') return fixtureAssignees(repoRoot);
+  try {
+    return await liveAssignees();
+  } catch (error) {
+    if ((process.env.KANBAN_LIVE_FALLBACK || 'fixture') === 'none') throw error;
+    return fixtureAssignees(repoRoot);
+  }
+}
+
 async function fixtureDetail(repoRoot, board, taskId) {
   const raw = await readFixturePayload(repoRoot);
   const boardPayload = normalizeBoard(raw, board, 'fixture');
@@ -237,13 +342,17 @@ function hermesBin() {
   return process.env.HERMES_BIN || path.join(process.env.HOME || '/home/merquery', '.local', 'bin', 'hermes');
 }
 
-async function runHermesKanban(board, args, options = {}) {
-  const { stdout } = await execFileAsync(hermesBin(), ['kanban', '--board', board, ...args], {
+async function runHermesRaw(args, options = {}) {
+  const { stdout } = await execFileAsync(hermesBin(), args, {
     timeout: options.timeout || 10_000,
     maxBuffer: options.maxBuffer || 1024 * 1024,
     env: { ...process.env }
   });
   return stdout;
+}
+
+async function runHermesKanban(board, args, options = {}) {
+  return runHermesRaw(['kanban', '--board', board, ...args], options);
 }
 
 async function liveBoard(board) {
@@ -318,6 +427,16 @@ async function createTriageTask(board, payload) {
   const body = optionalText(payload.body, 8000, 'body') || '';
   const assignee = optionalText(payload.assignee, 80, 'assignee');
   const tenant = optionalText(payload.tenant, 80, 'tenant');
+  const workspace = optionalText(payload.workspace, 256, 'workspace') || 'scratch';
+  if (!/^(scratch|worktree|dir:[^\0]+)$/.test(workspace)) {
+    const error = new Error('workspace must be scratch, worktree, or dir:<path>');
+    error.statusCode = 400;
+    throw error;
+  }
+  const maxRuntime = optionalText(payload.max_runtime || payload.maxRuntime, 40, 'max_runtime');
+  const idempotencyKey = optionalText(payload.idempotency_key || payload.idempotencyKey, 160, 'idempotency_key');
+  const parents = Array.isArray(payload.parents) ? payload.parents.map((item) => safeTaskId(item)) : optionalText(payload.parent || payload.parents, 2000, 'parents')?.split(/[\s,]+/).filter(Boolean).map((item) => safeTaskId(item)) || [];
+  const skills = Array.isArray(payload.skills) ? payload.skills.map((item) => optionalSlug(item, 'skill')).filter(Boolean) : optionalText(payload.skills, 2000, 'skills')?.split(/[\s,]+/).filter(Boolean).map((item) => optionalSlug(item, 'skill')) || [];
   const priority = Number(payload.priority || 0);
   if (!Number.isFinite(priority) || priority < -1000 || priority > 1000) {
     const error = new Error('priority must be between -1000 and 1000');
@@ -329,14 +448,34 @@ async function createTriageTask(board, payload) {
     'create', title,
     '--body', body,
     '--priority', String(Math.trunc(priority)),
-    '--triage',
+    '--workspace', workspace,
     '--created-by', WRITE_AUTHOR,
     '--json'
   ];
+  if (parseBoolean(payload.triage, true)) args.push('--triage');
   if (assignee) args.push('--assignee', assignee);
   if (tenant) args.push('--tenant', tenant);
+  if (idempotencyKey) args.push('--idempotency-key', idempotencyKey);
+  if (maxRuntime) args.push('--max-runtime', maxRuntime);
+  for (const parent of parents) args.push('--parent', parent);
+  for (const skill of skills) args.push('--skill', skill);
   const stdout = await runHermesKanban(board, args);
   return parseCreatedTask(stdout);
+}
+
+async function createBoard(payload) {
+  const slug = safeSlug(payload.slug);
+  const args = ['kanban', 'boards', 'create', slug];
+  const name = optionalText(payload.name, 120, 'name');
+  const description = optionalText(payload.description, 1000, 'description');
+  const icon = optionalText(payload.icon, 16, 'icon');
+  const color = optionalText(payload.color, 32, 'color');
+  if (name) args.push('--name', name);
+  if (description) args.push('--description', description);
+  if (icon) args.push('--icon', icon);
+  if (color) args.push('--color', color);
+  await runHermesRaw(args);
+  return { slug, name: name || slug, description: description || '', icon: icon || '', color: color || '' };
 }
 
 async function commentTask(board, taskId, payload) {
@@ -502,7 +641,7 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
         readOnly: readOnlyMode(),
         writesEnabled: writesEnabled(),
         writeMode: writesEnabled() ? 'operator' : 'disabled',
-        allowedWrites: writesEnabled() ? ['create-triage', 'comment', 'assign', 'block', 'unblock', 'complete', 'archive', 'reclaim', 'reassign', 'edit', 'link', 'unlink'] : [],
+        allowedWrites: writesEnabled() ? ['create-triage', 'create-task', 'create-board', 'comment', 'assign', 'block', 'unblock', 'complete', 'archive', 'reclaim', 'reassign', 'edit', 'link', 'unlink'] : [],
         columns: BOARD_COLUMNS
       });
     }
@@ -510,6 +649,21 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
     if (pathName === '/api/kanban/board' && req.method === 'GET') {
       const boardPayload = await loadBoard(repoRoot, board);
       return sendJson(res, 200, boardPayload);
+    }
+
+    if (pathName === '/api/kanban/boards' && req.method === 'GET') {
+      return sendJson(res, 200, await loadBoards(repoRoot, board));
+    }
+
+    if (pathName === '/api/kanban/boards' && req.method === 'POST') {
+      const payload = await readRequestJson(req);
+      requireWritable(mode);
+      const created = await createBoard(payload);
+      return sendJson(res, 201, { ok: true, board: created });
+    }
+
+    if (pathName === '/api/kanban/assignees' && req.method === 'GET') {
+      return sendJson(res, 200, await loadAssignees(repoRoot));
     }
 
     if (pathName === '/api/kanban/tasks' && req.method === 'POST') {

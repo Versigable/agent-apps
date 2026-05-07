@@ -16,6 +16,12 @@ test('kanban operator app loads fixture board in read-only safe mode', async ({ 
   await expect(page.getByTestId('summary-active')).toContainText('2');
   await expect(page.getByTestId('last-refresh')).toContainText(/last refresh/i);
   await expect(page.getByRole('button', { name: /refresh board/i })).toBeEnabled();
+  await expect(page.getByTestId('board-selector')).toHaveValue('default');
+  await expect(page.getByRole('button', { name: /create board/i })).toBeDisabled();
+  await expect(page.getByLabel('Workspace')).toHaveValue('scratch');
+  await expect(page.getByLabel('Parent task IDs')).toBeDisabled();
+  await expect(page.getByLabel('Forced skills')).toBeDisabled();
+  await expect(page.getByTestId('assignee-roster')).toContainText('default');
   await expect(page.getByTestId('safety-banner')).toContainText(/read-only/i);
   await expect(page.getByTestId('safety-banner')).toContainText(/writes are disabled/i);
 
@@ -108,6 +114,54 @@ test('kanban bridge exposes fixture board without dispatcher controls', async ({
     priority: 5
   });
   expect(JSON.stringify(payload)).not.toMatch(/dispatch|ready-promotion|kanban\.db|\/home\//i);
+});
+
+test('kanban bridge exposes sanitized boards and assignee roster in fixture mode', async ({ request }) => {
+  const boards = await request.get('/api/kanban/boards');
+  expect(boards.ok()).toBe(true);
+  const boardsPayload = await boards.json();
+  expect(boardsPayload).toMatchObject({
+    currentBoard: 'default',
+    boards: [
+      { slug: 'default', name: 'Default', is_current: true, total: 2 },
+      { slug: 'agent-apps', name: 'Agent Apps', is_current: false, total: 0 }
+    ]
+  });
+  expect(JSON.stringify(boardsPayload)).not.toMatch(/db_path|kanban\.db|\/home\//i);
+
+  const assignees = await request.get('/api/kanban/assignees');
+  expect(assignees.ok()).toBe(true);
+  await expect(assignees.json()).resolves.toMatchObject({
+    assignees: [
+      { name: 'default', on_disk: true },
+      { name: 'DrClawBotNik', source: 'fixture-board' },
+      { name: 'Merquery', source: 'fixture-board' }
+    ]
+  });
+
+  const createBoard = await request.post('/api/kanban/boards', {
+    data: { slug: 'fixture-new', name: 'Fixture New', description: 'fixture locked' }
+  });
+  expect(createBoard.status()).toBe(423);
+});
+
+test('kanban bridge accepts full create payload shape but locks writes in fixture mode', async ({ request }) => {
+  const response = await request.post('/api/kanban/tasks?board=default', {
+    data: {
+      title: 'Full create fixture smoke',
+      body: 'Body text',
+      assignee: 'Merquery',
+      tenant: 'agent-apps',
+      priority: 9,
+      triage: false,
+      parents: ['t_fixture_triage_001'],
+      workspace: 'worktree',
+      max_runtime: '30m',
+      skills: ['github-code-review', 'test-driven-development'],
+      idempotency_key: 'fixture-full-create'
+    }
+  });
+  expect(response.status()).toBe(423);
 });
 
 test('kanban bridge exposes fixture task operator detail endpoints', async ({ request }) => {

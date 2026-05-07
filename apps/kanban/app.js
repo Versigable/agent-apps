@@ -2,6 +2,11 @@ const boardEl = document.querySelector('#board');
 const statusEl = document.querySelector('[data-testid="bridge-status"]');
 const safetyEl = document.querySelector('[data-testid="safety-banner"]');
 const createForm = document.querySelector('#create-task-form');
+const createBoardForm = document.querySelector('#create-board-form');
+const boardSelector = document.querySelector('#board-selector');
+const boardStatus = document.querySelector('[data-testid="board-status"]');
+const assigneeRosterEl = document.querySelector('[data-testid="assignee-roster"]');
+const assigneeOptions = document.querySelector('#assignee-options');
 const createStatus = document.querySelector('[data-testid="create-status"]');
 const drawer = document.querySelector('#drawer');
 const drawerBody = document.querySelector('#drawer-body');
@@ -22,6 +27,9 @@ const summaryEls = {
 
 const columnNames = ['triage', 'todo', 'ready', 'running', 'blocked', 'done'];
 let currentBoard = null;
+let activeBoard = new URLSearchParams(window.location.search).get('board') || 'default';
+let currentBoards = [];
+let currentAssignees = [];
 let lastRefreshDate = null;
 let activeDrawerTaskId = null;
 
@@ -49,6 +57,17 @@ function allTasks(board = currentBoard) {
 
 function writesEnabled() {
   return Boolean(currentBoard && !currentBoard.readOnly && currentBoard.writesEnabled);
+}
+
+function boardParam() {
+  return `board=${encodeURIComponent(activeBoard)}`;
+}
+
+function setActiveBoard(board) {
+  activeBoard = board || 'default';
+  const url = new URL(window.location.href);
+  url.searchParams.set('board', activeBoard);
+  window.history.replaceState({}, '', url);
 }
 
 function setMessage(el, message, isError = false) {
@@ -93,16 +112,32 @@ function filteredColumns() {
 function updateFilterOptions() {
   const preserve = { assignee: filterAssignee.value, tenant: filterTenant.value, status: filterStatus.value };
   const tasks = allTasks();
-  const assignees = [...new Set(tasks.map((task) => task.assignee).filter(Boolean))].sort();
+  const assigneeNames = [...new Set([...currentAssignees.map((item) => item.name), ...tasks.map((task) => task.assignee)].filter(Boolean))].sort();
   const tenants = [...new Set(tasks.map((task) => task.tenant).filter(Boolean))].sort();
 
-  filterAssignee.replaceChildren(new Option('All assignees', ''), ...assignees.map((item) => new Option(item, item)));
+  filterAssignee.replaceChildren(new Option('All assignees', ''), ...assigneeNames.map((item) => new Option(item, item)));
   filterTenant.replaceChildren(new Option('All tenants', ''), ...tenants.map((item) => new Option(item, item)));
   filterStatus.replaceChildren(new Option('All statuses', ''), ...columnNames.map((item) => new Option(item, item)));
 
-  filterAssignee.value = assignees.includes(preserve.assignee) ? preserve.assignee : '';
+  filterAssignee.value = assigneeNames.includes(preserve.assignee) ? preserve.assignee : '';
   filterTenant.value = tenants.includes(preserve.tenant) ? preserve.tenant : '';
   filterStatus.value = columnNames.includes(preserve.status) ? preserve.status : '';
+}
+
+function updateAssigneeRoster() {
+  const names = currentAssignees.map((item) => item.name).filter(Boolean);
+  assigneeOptions.replaceChildren(...names.map((name) => new Option(name, name)));
+  assigneeRosterEl.textContent = names.length ? `Assignees: ${names.join(', ')}` : 'Assignees: none discovered';
+}
+
+function updateBoards(payload) {
+  currentBoards = payload.boards || [];
+  boardSelector.replaceChildren(...currentBoards.map((board) => new Option(`${board.icon ? `${board.icon} ` : ''}${board.name || board.slug} (${board.slug})`, board.slug)));
+  if (!currentBoards.some((board) => board.slug === activeBoard)) {
+    boardSelector.append(new Option(activeBoard, activeBoard));
+  }
+  boardSelector.value = activeBoard;
+  setMessage(boardStatus, currentBoards.length ? `${currentBoards.length} boards available` : 'No boards discovered');
 }
 
 function renderTaskButton(task) {
@@ -203,7 +238,12 @@ function formField(label, name, options = {}) {
 function updateCreateFormState() {
   const enabled = writesEnabled();
   for (const field of createForm.elements) field.disabled = !enabled;
-  setMessage(createStatus, enabled ? 'Writes enabled: new cards are created in triage for operator routing.' : 'Read-only mode: creation is disabled.');
+  for (const field of createBoardForm.elements) field.disabled = !enabled;
+  setMessage(createStatus, enabled ? 'Writes enabled: create triage or direct todo cards with workspace, parents, runtime, skills, and idempotency metadata.' : 'Read-only mode: creation is disabled.');
+}
+
+function splitList(value) {
+  return String(value || '').split(/[\s,]+/).map((item) => item.trim()).filter(Boolean);
 }
 
 async function handleCreate(event) {
@@ -214,17 +254,43 @@ async function handleCreate(event) {
     body: form.get('body'),
     assignee: form.get('assignee'),
     tenant: form.get('tenant'),
-    priority: Number(form.get('priority') || 0)
+    priority: Number(form.get('priority') || 0),
+    workspace: form.get('workspace') || 'scratch',
+    parents: splitList(form.get('parents')),
+    skills: splitList(form.get('skills')),
+    max_runtime: form.get('max_runtime'),
+    idempotency_key: form.get('idempotency_key'),
+    triage: form.get('triage') === 'on'
   };
   try {
-    setMessage(createStatus, 'Creating triage card…');
-    await postJson('/api/kanban/tasks?board=default', payload);
+    setMessage(createStatus, `Creating card on ${activeBoard}…`);
+    await postJson(`/api/kanban/tasks?${boardParam()}`, payload);
     createForm.reset();
     createForm.elements.priority.value = '0';
-    setMessage(createStatus, 'Triage card created. Refreshing board…');
+    createForm.elements.workspace.value = 'scratch';
+    createForm.elements.triage.checked = true;
+    setMessage(createStatus, 'Card created. Refreshing board…');
     await refreshBoard();
   } catch (error) {
     setMessage(createStatus, error.message, true);
+  }
+}
+
+async function handleCreateBoard(event) {
+  event.preventDefault();
+  const form = new FormData(createBoardForm);
+  try {
+    setMessage(boardStatus, 'Creating board…');
+    const response = await postJson('/api/kanban/boards', {
+      slug: form.get('slug'),
+      name: form.get('name')
+    });
+    createBoardForm.reset();
+    setActiveBoard(response.board?.slug || form.get('slug'));
+    await refreshBoard();
+    setMessage(boardStatus, `Board ${activeBoard} created and selected.`);
+  } catch (error) {
+    setMessage(boardStatus, error.message, true);
   }
 }
 
@@ -386,7 +452,7 @@ function appendDrawerWriteControls(task) {
   panel.append(status);
 
   function actionEndpoint(payload) {
-    return postJson(`/api/kanban/tasks/${encodeURIComponent(task.id)}/actions?board=default`, payload);
+    return postJson(`/api/kanban/tasks/${encodeURIComponent(task.id)}/actions?${boardParam()}`, payload);
   }
 
   const commentForm = document.createElement('form');
@@ -397,7 +463,7 @@ function appendDrawerWriteControls(task) {
     event.preventDefault();
     try {
       setMessage(status, 'Adding comment…');
-      await postJson(`/api/kanban/tasks/${encodeURIComponent(task.id)}/comments?board=default`, { text: new FormData(commentForm).get('text') });
+      await postJson(`/api/kanban/tasks/${encodeURIComponent(task.id)}/comments?${boardParam()}`, { text: new FormData(commentForm).get('text') });
       setMessage(status, 'Comment added. Refreshing board…');
       await refreshBoard();
       await openDrawerById(task.id);
@@ -513,7 +579,7 @@ function appendDrawerWriteControls(task) {
       const form = new FormData(linkForm);
       try {
         setMessage(status, `${label}…`);
-        await postJson('/api/kanban/links?board=default', { action, parent_id: form.get('parent_id'), child_id: form.get('child_id') });
+        await postJson(`/api/kanban/links?${boardParam()}`, { action, parent_id: form.get('parent_id'), child_id: form.get('child_id') });
         setMessage(status, `${label} done. Refreshing board…`);
         await refreshBoard();
         await openDrawerById(task.id);
@@ -574,7 +640,7 @@ function appendDrawerWriteControls(task) {
 }
 
 async function loadTaskDetail(taskId) {
-  return requestJson(`/api/kanban/tasks/${encodeURIComponent(taskId)}/show?board=default`);
+  return requestJson(`/api/kanban/tasks/${encodeURIComponent(taskId)}/show?${boardParam()}`);
 }
 
 async function openDrawerById(taskId) {
@@ -625,7 +691,17 @@ async function openDrawer(task) {
 }
 
 async function loadBoard() {
-  return requestJson('/api/kanban/board?board=default');
+  return requestJson(`/api/kanban/board?${boardParam()}`);
+}
+
+async function loadBoardMetadata() {
+  const [boards, assignees] = await Promise.all([
+    requestJson(`/api/kanban/boards?${boardParam()}`),
+    requestJson('/api/kanban/assignees')
+  ]);
+  currentAssignees = assignees.assignees || [];
+  updateAssigneeRoster();
+  updateBoards(boards);
 }
 
 function renderBoard(board) {
@@ -644,7 +720,7 @@ async function refreshBoard() {
   refreshButton.disabled = true;
   lastRefreshEl.textContent = 'Refreshing…';
   try {
-    const board = await loadBoard();
+    const [board] = await Promise.all([loadBoard(), loadBoardMetadata()]);
     renderBoard(board);
     lastRefreshDate = new Date();
     lastRefreshEl.textContent = `Last refresh: ${formatClock(lastRefreshDate)}`;
@@ -667,6 +743,12 @@ drawerClose.addEventListener('click', () => {
 });
 
 createForm.addEventListener('submit', handleCreate);
+createBoardForm.addEventListener('submit', handleCreateBoard);
+boardSelector.addEventListener('change', async () => {
+  setActiveBoard(boardSelector.value);
+  drawer.hidden = true;
+  await refreshBoard();
+});
 refreshButton.addEventListener('click', refreshBoard);
 for (const control of [filterSearch, filterAssignee, filterTenant, filterStatus]) {
   control.addEventListener('input', renderFilteredBoard);

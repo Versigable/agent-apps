@@ -65,6 +65,8 @@ h1 {
 .safety-banner,
 .toolbar,
 .ops-bar,
+.board-controls,
+.inline-form,
 .summary-card,
 .column,
 .drawer {
@@ -95,6 +97,39 @@ h1 {
   margin: 18px 0;
   padding: 14px;
   border-radius: 18px;
+}
+
+.board-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) 1fr;
+  gap: 14px;
+  align-items: end;
+  margin: 18px 0;
+  padding: 14px;
+  border-radius: 18px;
+}
+
+.inline-form {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  padding: 12px;
+  border-radius: 16px;
+}
+
+.assignee-roster {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.checkbox-field {
+  flex-direction: row;
+  align-items: center;
+}
+
+.checkbox-field input {
+  width: auto;
 }
 
 .summary-grid {
@@ -439,6 +474,8 @@ h1 {
   .hero,
   .toolbar,
   .ops-bar,
+  .board-controls,
+  .inline-form,
   .drawer-form.compact {
     flex-direction: column;
     align-items: stretch;

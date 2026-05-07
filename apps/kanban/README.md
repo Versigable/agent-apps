@@ -30,10 +30,13 @@ Operator UX affordances:
 
 - bridge-provided board summary counts (`total`, `active`, `by_status`, `by_assignee`, `by_tenant`)
 - header summary cards for total, active, triage, and blocked counts
-- client-side filters for search, assignee, tenant, and status
-- manual refresh button plus visible last-refresh status
-- task drawer tabs for details, comments/events, runs, logs, context, and diagnostics
-- richer operator forms for comments, assignment, complete result/summary/metadata, block reason, reassign/reclaim, completed-result edits, and dependency link/unlink
+- client-side search plus assignee, tenant, and status filters
+- manual refresh with visible last-refresh status
+- board selector plus create-board form via constrained `/api/kanban/boards`
+- real assignee roster from `/api/kanban/assignees` used in filters and create form suggestions
+- full create-card payload fields: triage/direct creation, workspace, parent IDs, forced skills, max runtime, and idempotency key
+- task drawer tabs for details, comments/events, runs, log, context, and diagnostics
+- task drawer operator forms for comments, assignment, completion metadata, block/unblock, archive, reassign/reclaim, edit completed result, and dependency link/unlink
 
 Still intentionally absent:
 

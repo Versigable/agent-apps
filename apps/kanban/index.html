@@ -41,6 +41,22 @@
         </article>
       </section>
 
+      <section class="board-controls" aria-label="Board controls">
+        <label>
+          <span>Board</span>
+          <select id="board-selector" data-testid="board-selector" aria-label="Board">
+            <option value="default">default</option>
+          </select>
+        </label>
+        <form id="create-board-form" class="inline-form" aria-label="Create board">
+          <input name="slug" aria-label="New board slug" maxlength="64" placeholder="new-board-slug" />
+          <input name="name" aria-label="New board name" maxlength="120" placeholder="Display name" />
+          <button type="submit">Create board</button>
+          <span data-testid="board-status" class="toolbar-note">Loading boards…</span>
+        </form>
+        <div class="assignee-roster" data-testid="assignee-roster">Loading assignees…</div>
+      </section>
+
       <section class="ops-bar" aria-label="Board refresh and filters">
         <button id="refresh-board" type="button">Refresh board</button>
         <span class="last-refresh" data-testid="last-refresh">Last refresh: never</span>
@@ -80,7 +96,7 @@
         </label>
         <label>
           <span>Assignee</span>
-          <input name="assignee" maxlength="80" placeholder="profile name" />
+          <input name="assignee" list="assignee-options" maxlength="80" placeholder="profile name" />
         </label>
         <label>
           <span>Tenant</span>
@@ -90,8 +106,36 @@
           <span>Priority</span>
           <input name="priority" type="number" min="-1000" max="1000" value="0" />
         </label>
+        <label>
+          <span>Workspace</span>
+          <select name="workspace" aria-label="Workspace">
+            <option value="scratch">scratch</option>
+            <option value="worktree">worktree</option>
+          </select>
+        </label>
+        <label>
+          <span>Parent task IDs</span>
+          <input name="parents" aria-label="Parent task IDs" placeholder="comma/space separated" />
+        </label>
+        <label>
+          <span>Forced skills</span>
+          <input name="skills" aria-label="Forced skills" placeholder="github-code-review test-driven-development" />
+        </label>
+        <label>
+          <span>Max runtime</span>
+          <input name="max_runtime" aria-label="Max runtime" placeholder="30m" />
+        </label>
+        <label>
+          <span>Idempotency key</span>
+          <input name="idempotency_key" aria-label="Idempotency key" placeholder="optional dedupe key" />
+        </label>
+        <label class="checkbox-field">
+          <input name="triage" type="checkbox" checked />
+          <span>Create in triage</span>
+        </label>
         <button type="submit">Create triage card</button>
         <span class="toolbar-note" data-testid="create-status">Checking write permissions…</span>
+        <datalist id="assignee-options"></datalist>
       </form>
 
       <section id="board" class="board" aria-live="polite"></section>
