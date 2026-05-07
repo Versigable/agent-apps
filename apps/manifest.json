@@ -16,10 +16,10 @@
       "id": "kanban",
       "title": "Hermes Kanban Board",
       "type": "operator-workflow",
-      "status": "m1-read-only",
+      "status": "operator-execution",
       "agent": "Merquery",
       "model": "gpt-5.5",
-      "summary": "A web-accessible, read-only Hermes Kanban operator board with a constrained /api/kanban bridge, live default board data, and explicit task-safety boundaries.",
+      "summary": "A web-accessible Hermes Kanban operator board with a constrained /api/kanban bridge, live default board data, card management, and high-friction manual execution controls.",
       "launchUrl": "./kanban/",
       "previewPath": "/apps/kanban/",
       "previewUrl": "https://app-preview.ninjaprivacy.org/apps/kanban/",
@@ -28,7 +28,7 @@
       "testCommand": "npx playwright test tests/kanban-board.spec.mjs --reporter=list",
       "safetyPosture": [
         "Read-only by default",
-        "No dispatcher button",
+        "Dispatch/claim require explicit confirmation",
         "No board-groomer cron",
         "No automatic ready promotion",
         "No direct Hermes dashboard plugin exposure"
@@ -36,11 +36,11 @@
       "operatorChecklist": [
         "Open the board and confirm the banner says live/read-only.",
         "Verify six columns render: triage, todo, ready, running, blocked, done.",
-        "Confirm create/dispatch/ready-promotion controls are not active.",
+        "Confirm execution controls are separated into the high-friction panel and ready promotion remains manual.",
         "Use the app-preview surface, not game-preview, for operator use."
       ],
       "nextIdeas": [
-        "Add Authentik-protected triage card creation after workflow approval.",
+        "Add execution event streaming and worker process visibility.",
         "Add enrichment-only triage helpers: labels, summaries, dedupe hints, missing-field hints.",
         "Add an operator app registry as more app-preview tools arrive."
       ]

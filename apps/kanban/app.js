@@ -18,6 +18,10 @@ const filterSearch = document.querySelector('#filter-search');
 const filterAssignee = document.querySelector('#filter-assignee');
 const filterTenant = document.querySelector('#filter-tenant');
 const filterStatus = document.querySelector('#filter-status');
+const dispatchForm = document.querySelector('#dispatch-form');
+const claimForm = document.querySelector('#claim-form');
+const executionStatusEl = document.querySelector('[data-testid="execution-status"]');
+const executionOutputEl = document.querySelector('[data-testid="execution-output"]');
 const summaryEls = {
   total: document.querySelector('[data-testid="summary-total"]'),
   active: document.querySelector('[data-testid="summary-active"]'),
@@ -30,6 +34,7 @@ let currentBoard = null;
 let activeBoard = new URLSearchParams(window.location.search).get('board') || 'default';
 let currentBoards = [];
 let currentAssignees = [];
+let currentExecution = null;
 let lastRefreshDate = null;
 let activeDrawerTaskId = null;
 
@@ -57,6 +62,10 @@ function allTasks(board = currentBoard) {
 
 function writesEnabled() {
   return Boolean(currentBoard && !currentBoard.readOnly && currentBoard.writesEnabled);
+}
+
+function executionEnabled() {
+  return Boolean(currentExecution && currentExecution.executionEnabled && writesEnabled());
 }
 
 function boardParam() {
@@ -240,6 +249,59 @@ function updateCreateFormState() {
   for (const field of createForm.elements) field.disabled = !enabled;
   for (const field of createBoardForm.elements) field.disabled = !enabled;
   setMessage(createStatus, enabled ? 'Writes enabled: create triage or direct todo cards with workspace, parents, runtime, skills, and idempotency metadata.' : 'Read-only mode: creation is disabled.');
+  updateExecutionFormState();
+}
+
+function updateExecutionFormState() {
+  const enabled = executionEnabled();
+  for (const field of dispatchForm.elements) field.disabled = !enabled;
+  for (const field of claimForm.elements) field.disabled = !enabled;
+  const stats = currentExecution?.stats || {};
+  const counts = stats.by_status || {};
+  const mode = currentExecution?.mode || 'unknown';
+  const state = enabled ? 'execution enabled' : 'execution disabled';
+  executionStatusEl.textContent = `${state} · ${mode} · total ${stats.total ?? 0} · ready ${counts.ready ?? 0} · running ${counts.running ?? 0} · blocked ${counts.blocked ?? stats.blocked ?? 0}`;
+}
+
+function setExecutionOutput(payload) {
+  executionOutputEl.textContent = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2);
+}
+
+async function handleDispatch(event) {
+  event.preventDefault();
+  const submitter = event.submitter;
+  const form = new FormData(dispatchForm);
+  const dryRun = submitter?.value === 'dry-run' ? true : form.get('dry_run') === 'on';
+  try {
+    setExecutionOutput('Dispatch request running…');
+    const response = await postJson(`/api/kanban/execution/dispatch?${boardParam()}`, {
+      confirm: form.get('confirm'),
+      dry_run: dryRun,
+      max: Number(form.get('max') || 1),
+      failure_limit: Number(form.get('failure_limit') || 5)
+    });
+    setExecutionOutput(response);
+    await refreshBoard();
+  } catch (error) {
+    setExecutionOutput(`Dispatch failed: ${error.message}`);
+  }
+}
+
+async function handleClaim(event) {
+  event.preventDefault();
+  const form = new FormData(claimForm);
+  const taskId = String(form.get('task_id') || '').trim();
+  try {
+    setExecutionOutput(`Claiming ${taskId}…`);
+    const response = await postJson(`/api/kanban/tasks/${encodeURIComponent(taskId)}/claim?${boardParam()}`, {
+      confirm: form.get('confirm'),
+      ttl: Number(form.get('ttl') || 900)
+    });
+    setExecutionOutput(response);
+    await refreshBoard();
+  } catch (error) {
+    setExecutionOutput(`Claim failed: ${error.message}`);
+  }
 }
 
 function splitList(value) {
@@ -680,7 +742,7 @@ async function openDrawer(task) {
     const safety = document.createElement('div');
     safety.className = 'drawer-safety';
     safety.textContent = writesEnabled()
-      ? 'Operator writes are enabled. Dispatcher execution controls are still intentionally absent.'
+      ? 'Operator writes are enabled. Execution controls live in the separate high-friction panel and automatic ready promotion remains absent.'
       : 'Execution and write controls are intentionally absent in read-only mode.';
     drawerBody.append(safety);
     appendDrawerWriteControls(detail.task || task);
@@ -695,13 +757,16 @@ async function loadBoard() {
 }
 
 async function loadBoardMetadata() {
-  const [boards, assignees] = await Promise.all([
+  const [boards, assignees, execution] = await Promise.all([
     requestJson(`/api/kanban/boards?${boardParam()}`),
-    requestJson('/api/kanban/assignees')
+    requestJson('/api/kanban/assignees'),
+    requestJson(`/api/kanban/execution/status?${boardParam()}`)
   ]);
   currentAssignees = assignees.assignees || [];
+  currentExecution = execution;
   updateAssigneeRoster();
   updateBoards(boards);
+  updateExecutionFormState();
 }
 
 function renderBoard(board) {
@@ -744,6 +809,8 @@ drawerClose.addEventListener('click', () => {
 
 createForm.addEventListener('submit', handleCreate);
 createBoardForm.addEventListener('submit', handleCreateBoard);
+dispatchForm.addEventListener('submit', handleDispatch);
+claimForm.addEventListener('submit', handleClaim);
 boardSelector.addEventListener('change', async () => {
   setActiveBoard(boardSelector.value);
   drawer.hidden = true;

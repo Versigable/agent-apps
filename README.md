@@ -6,7 +6,7 @@ Monorepo for agent-developed applications, utilities, and browser-playable exper
 
 ### Hermes Kanban operator app
 
-Read-safe web board for local Hermes Kanban lives under [`apps/kanban/`](./apps/kanban/) and is served by the preview service at `/apps/kanban/`. The first milestone intentionally locks dispatcher and `ready` promotion controls until the operator workflow is approved.
+Operator web board for local Hermes Kanban lives under [`apps/kanban/`](./apps/kanban/) and is served by the preview service at `/apps/kanban/`. Current app-preview exposes constrained card/board operations plus high-friction manual dispatch/claim controls while still avoiding automatic ready promotion.
 
 Operator apps should be exposed through the app preview surface, not the game preview surface. The persistent app-preview service listens on port `4175` and is intended for `https://app-preview.ninjaprivacy.org/apps/` once Traefik routes that hostname to OpenClaw port `4175`. The app dashboard mirrors the game arcade launcher at [`apps/`](./apps/) with its own operator-control flair and links to `/apps/kanban/`.
 
@@ -86,7 +86,7 @@ For boot-persistent operator app hosting as the `merquery` user:
 scripts/install-app-preview-service.sh
 ```
 
-The app preview user unit lives at `deploy/systemd/user/agent-app-preview.service` and listens on port `4175` with `PREVIEW_SURFACE=apps`, `KANBAN_READONLY=false`, and `KANBAN_WRITE_AUTHOR=app-preview`. This keeps app previews independently targetable from game previews on port `4173` with `PREVIEW_SURFACE=games`. The Kanban app can create triage cards and perform operator writes, but it still does not expose dispatcher execution controls or automatic ready promotion.
+The app preview user unit lives at `deploy/systemd/user/agent-app-preview.service` and listens on port `4175` with `PREVIEW_SURFACE=apps`, `KANBAN_READONLY=false`, `KANBAN_WRITE_AUTHOR=app-preview`, and `KANBAN_EXECUTION_ENABLED=true`. This keeps app previews independently targetable from game previews on port `4173` with `PREVIEW_SURFACE=games`. The Kanban app can create/manage cards and expose high-friction manual dispatch/claim controls, but it still does not expose automatic ready promotion or board-groomer automation.
 
 ## Video artifact workflow
 

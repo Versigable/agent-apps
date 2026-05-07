@@ -99,6 +99,18 @@ function writesEnabled() {
   return !readOnlyMode();
 }
 
+function executionEnabled() {
+  return writesEnabled() && parseBoolean(process.env.KANBAN_EXECUTION_ENABLED, false);
+}
+
+function requireExecution() {
+  if (!executionEnabled()) {
+    const error = new Error('execution disabled');
+    error.statusCode = 423;
+    throw error;
+  }
+}
+
 function publicTask(task) {
   return {
     id: task.id,
@@ -314,6 +326,96 @@ async function loadAssignees(repoRoot) {
     if ((process.env.KANBAN_LIVE_FALLBACK || 'fixture') === 'none') throw error;
     return fixtureAssignees(repoRoot);
   }
+}
+
+async function fixtureExecutionStatus(repoRoot, board) {
+  const boardPayload = await fixtureBoard(repoRoot, board);
+  return {
+    board,
+    mode: 'fixture',
+    readOnly: readOnlyMode(),
+    writesEnabled: writesEnabled(),
+    executionEnabled: executionEnabled(),
+    dryRunAvailable: true,
+    stats: {
+      total: boardPayload.summary.total,
+      active: boardPayload.summary.active,
+      by_status: boardPayload.summary.by_status,
+      blocked: boardPayload.summary.by_status.blocked || 0
+    }
+  };
+}
+
+async function liveExecutionStatus(repoRoot, board) {
+  let stats = null;
+  try {
+    const stdout = await runHermesKanban(board, ['stats', '--json']);
+    stats = JSON.parse(stdout || '{}');
+  } catch {
+    const boardPayload = await loadBoard(repoRoot, board);
+    stats = {
+      total: boardPayload.summary.total,
+      active: boardPayload.summary.active,
+      by_status: boardPayload.summary.by_status,
+      blocked: boardPayload.summary.by_status.blocked || 0
+    };
+  }
+  return {
+    board,
+    mode: 'live',
+    readOnly: readOnlyMode(),
+    writesEnabled: writesEnabled(),
+    executionEnabled: executionEnabled(),
+    dryRunAvailable: true,
+    stats
+  };
+}
+
+async function loadExecutionStatus(repoRoot, board) {
+  if (resolveMode() === 'fixture') return fixtureExecutionStatus(repoRoot, board);
+  try {
+    return await liveExecutionStatus(repoRoot, board);
+  } catch (error) {
+    if ((process.env.KANBAN_LIVE_FALLBACK || 'fixture') === 'none') throw error;
+    return fixtureExecutionStatus(repoRoot, board);
+  }
+}
+
+function boundedInteger(value, min, max, field, defaultValue) {
+  const number = Number(value === undefined || value === null || value === '' ? defaultValue : value);
+  if (!Number.isInteger(number) || number < min || number > max) {
+    const error = new Error(`${field} must be an integer between ${min} and ${max}`);
+    error.statusCode = 400;
+    throw error;
+  }
+  return number;
+}
+
+async function dispatchExecution(board, payload) {
+  requireExecution();
+  if (payload.confirm !== 'DISPATCH') {
+    const error = new Error('dispatch requires confirm=DISPATCH');
+    error.statusCode = 400;
+    throw error;
+  }
+  const args = ['dispatch', '--json'];
+  if (parseBoolean(payload.dry_run, true)) args.push('--dry-run');
+  args.push('--max', String(boundedInteger(payload.max, 1, 20, 'max', 1)));
+  args.push('--failure-limit', String(boundedInteger(payload.failure_limit ?? payload.failureLimit, 1, 20, 'failure_limit', 5)));
+  const stdout = await runHermesKanban(board, args, { timeout: 60_000, maxBuffer: 1024 * 1024 * 4 });
+  return { action: 'dispatch', result: JSON.parse(stdout || '{}') };
+}
+
+async function claimExecutionTask(board, taskId, payload) {
+  requireExecution();
+  if (payload.confirm !== 'CLAIM') {
+    const error = new Error('claim requires confirm=CLAIM');
+    error.statusCode = 400;
+    throw error;
+  }
+  const ttl = boundedInteger(payload.ttl, 30, 86_400, 'ttl', 900);
+  const stdout = await runHermesKanban(board, ['claim', taskId, '--ttl', String(ttl)], { timeout: 30_000 });
+  return { action: 'claim', task_id: taskId, ttl, output: stdout.trim() };
 }
 
 async function fixtureDetail(repoRoot, board, taskId) {
@@ -640,8 +742,9 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
         board,
         readOnly: readOnlyMode(),
         writesEnabled: writesEnabled(),
+        executionEnabled: executionEnabled(),
         writeMode: writesEnabled() ? 'operator' : 'disabled',
-        allowedWrites: writesEnabled() ? ['create-triage', 'create-task', 'create-board', 'comment', 'assign', 'block', 'unblock', 'complete', 'archive', 'reclaim', 'reassign', 'edit', 'link', 'unlink'] : [],
+        allowedWrites: writesEnabled() ? ['create-triage', 'create-task', 'create-board', 'comment', 'assign', 'block', 'unblock', 'complete', 'archive', 'reclaim', 'reassign', 'edit', 'link', 'unlink', ...(executionEnabled() ? ['dispatch', 'claim'] : [])] : [],
         columns: BOARD_COLUMNS
       });
     }
@@ -664,6 +767,17 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
 
     if (pathName === '/api/kanban/assignees' && req.method === 'GET') {
       return sendJson(res, 200, await loadAssignees(repoRoot));
+    }
+
+    if (pathName === '/api/kanban/execution/status' && req.method === 'GET') {
+      return sendJson(res, 200, await loadExecutionStatus(repoRoot, board));
+    }
+
+    if (pathName === '/api/kanban/execution/dispatch' && req.method === 'POST') {
+      const payload = await readRequestJson(req);
+      requireWritable(mode);
+      const result = await dispatchExecution(board, payload);
+      return sendJson(res, 200, { ok: true, board, ...result });
     }
 
     if (pathName === '/api/kanban/tasks' && req.method === 'POST') {
@@ -724,6 +838,14 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
       const payload = await readRequestJson(req);
       requireWritable(mode);
       const result = await runTaskAction(board, safeTaskId(actionMatch[1]), payload);
+      return sendJson(res, 200, { ok: true, board, ...result });
+    }
+
+    const claimMatch = pathName.match(/^\/api\/kanban\/tasks\/([^/]+)\/claim$/);
+    if (claimMatch && req.method === 'POST') {
+      const payload = await readRequestJson(req);
+      requireWritable(mode);
+      const result = await claimExecutionTask(board, safeTaskId(claimMatch[1]), payload);
       return sendJson(res, 200, { ok: true, board, ...result });
     }
 

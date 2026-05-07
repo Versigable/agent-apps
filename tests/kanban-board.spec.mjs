@@ -59,7 +59,10 @@ test('kanban operator app loads fixture board in read-only safe mode', async ({ 
 
   await expect(page.getByRole('button', { name: /create triage card/i })).toBeDisabled();
   await expect(page.getByTestId('create-status')).toContainText(/read-only/i);
-  await expect(page.getByRole('button', { name: /dispatch/i })).toHaveCount(0);
+  await expect(page.getByTestId('execution-panel')).toContainText(/execution disabled/i);
+  await expect(page.getByRole('button', { name: /dispatch dry run/i })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^dispatch$/i })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /claim task/i })).toBeDisabled();
   await expect(page.getByRole('button', { name: /move to ready/i })).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
 });
@@ -89,7 +92,8 @@ test('kanban bridge exposes fixture board without dispatcher controls', async ({
     service: 'agent-apps-kanban-bridge',
     mode: 'fixture',
     readOnly: true,
-    writesEnabled: false
+    writesEnabled: false,
+    executionEnabled: false
   });
 
   const board = await request.get('/api/kanban/board?board=default');
@@ -113,7 +117,30 @@ test('kanban bridge exposes fixture board without dispatcher controls', async ({
     tenant: 'default',
     priority: 5
   });
-  expect(JSON.stringify(payload)).not.toMatch(/dispatch|ready-promotion|kanban\.db|\/home\//i);
+  expect(JSON.stringify(payload)).not.toMatch(/ready-promotion|kanban\.db|\/home\//i);
+});
+
+test('kanban execution bridge is visible but locked in fixture mode', async ({ request }) => {
+  const status = await request.get('/api/kanban/execution/status?board=default');
+  expect(status.ok()).toBe(true);
+  await expect(status.json()).resolves.toMatchObject({
+    board: 'default',
+    mode: 'fixture',
+    readOnly: true,
+    writesEnabled: false,
+    executionEnabled: false,
+    stats: { total: 2, by_status: { triage: 1, todo: 1 } }
+  });
+
+  const dispatch = await request.post('/api/kanban/execution/dispatch?board=default', {
+    data: { confirm: 'DISPATCH', dry_run: true, max: 1 }
+  });
+  expect(dispatch.status()).toBe(423);
+
+  const claim = await request.post('/api/kanban/tasks/t_fixture_triage_001/claim?board=default', {
+    data: { confirm: 'CLAIM', ttl: 60 }
+  });
+  expect(claim.status()).toBe(423);
 });
 
 test('kanban bridge exposes sanitized boards and assignee roster in fixture mode', async ({ request }) => {

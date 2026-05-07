@@ -35,15 +35,15 @@ Operator UX affordances:
 - board selector plus create-board form via constrained `/api/kanban/boards`
 - real assignee roster from `/api/kanban/assignees` used in filters and create form suggestions
 - full create-card payload fields: triage/direct creation, workspace, parent IDs, forced skills, max runtime, and idempotency key
+- high-friction execution panel backed by `/api/kanban/execution/status`, `/api/kanban/execution/dispatch`, and `/api/kanban/tasks/:id/claim`
+- dispatch requires typing `DISPATCH`; claim requires typing `CLAIM`; both remain disabled unless the bridge is writable and `KANBAN_EXECUTION_ENABLED=true`
 - task drawer tabs for details, comments/events, runs, log, context, and diagnostics
 - task drawer operator forms for comments, assignment, completion metadata, block/unblock, archive, reassign/reclaim, edit completed result, and dependency link/unlink
 
 Still intentionally absent:
 
-- dispatcher button
 - board-groomer cron
 - automatic movement to `ready`
-- profile execution controls
 - direct exposure of Hermes dashboard/plugin APIs
 
 The bridge lives at `/api/kanban/*` and must stay constrained. Do not expose the built-in Hermes dashboard plugin API directly on a network-accessible surface.

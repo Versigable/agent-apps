@@ -120,7 +120,7 @@ test('app preview dashboard renders registered operator apps', async ({ page }) 
   await expect(card.getByRole('link', { name: /open hermes kanban board/i })).toHaveAttribute('href', './kanban/');
   await expect(card.getByRole('link', { name: /health check for hermes kanban board/i })).toHaveAttribute('href', '/api/kanban/health');
   await expect(card.getByText('Read-only by default')).toBeVisible();
-  await expect(card.getByText('No dispatcher button')).toBeVisible();
+  await expect(card.getByText('Dispatch/claim require explicit confirmation')).toBeVisible();
 });
 
 test('preview surface mode separates app-preview from game-preview routes', async () => {

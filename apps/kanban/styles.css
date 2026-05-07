@@ -66,6 +66,7 @@ h1 {
 .toolbar,
 .ops-bar,
 .board-controls,
+.execution-panel,
 .inline-form,
 .summary-card,
 .column,
@@ -121,6 +122,34 @@ h1 {
   grid-column: 1 / -1;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.execution-panel {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin: 18px 0;
+  padding: 16px;
+  border-radius: 18px;
+  border-color: rgba(245, 158, 11, 0.5);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(15, 23, 42, 0.9));
+}
+
+.execution-panel h2 {
+  margin: 2px 0 4px;
+}
+
+.execution-output {
+  min-height: 70px;
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: rgba(2, 6, 23, 0.58);
+  white-space: pre-wrap;
 }
 
 .checkbox-field {
@@ -475,6 +504,7 @@ h1 {
   .toolbar,
   .ops-bar,
   .board-controls,
+  .execution-panel,
   .inline-form,
   .drawer-form.compact {
     flex-direction: column;

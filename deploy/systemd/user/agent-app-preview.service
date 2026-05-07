@@ -13,6 +13,7 @@ Environment=PREVIEW_SURFACE=apps
 Environment=HERMES_BIN=/home/merquery/.local/bin/hermes
 Environment=KANBAN_READONLY=false
 Environment=KANBAN_WRITE_AUTHOR=app-preview
+Environment=KANBAN_EXECUTION_ENABLED=true
 ExecStart=/usr/bin/env npm run serve:preview
 Restart=on-failure
 RestartSec=5

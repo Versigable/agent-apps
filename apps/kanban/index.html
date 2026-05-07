@@ -12,7 +12,7 @@
         <div>
           <p class="eyebrow">agent-apps operator surface</p>
           <h1>Hermes Kanban Board</h1>
-          <p class="lede">A web control surface for the local Hermes workflow board, with operator writes and no dispatcher execution controls.</p>
+          <p class="lede">A web control surface for the local Hermes workflow board, with operator writes and high-friction manual execution controls.</p>
         </div>
         <div class="status-card" data-testid="bridge-status">Loading bridge…</div>
       </header>
@@ -55,6 +55,50 @@
           <span data-testid="board-status" class="toolbar-note">Loading boards…</span>
         </form>
         <div class="assignee-roster" data-testid="assignee-roster">Loading assignees…</div>
+      </section>
+
+      <section class="execution-panel" data-testid="execution-panel" aria-label="Execution controls">
+        <div>
+          <p class="eyebrow">HIGH-FRICTION EXECUTION</p>
+          <h2>Execution controls</h2>
+          <p data-testid="execution-status">Loading execution status…</p>
+        </div>
+        <form id="dispatch-form" class="inline-form" aria-label="Dispatch execution">
+          <label>
+            <span>Max spawns</span>
+            <input name="max" type="number" min="1" max="20" value="1" />
+          </label>
+          <label>
+            <span>Failure limit</span>
+            <input name="failure_limit" type="number" min="1" max="20" value="5" />
+          </label>
+          <label class="checkbox-field">
+            <input name="dry_run" type="checkbox" checked />
+            <span>Dry run</span>
+          </label>
+          <label>
+            <span>Type DISPATCH</span>
+            <input name="confirm" aria-label="Dispatch confirmation" maxlength="8" placeholder="DISPATCH" />
+          </label>
+          <button type="submit" name="intent" value="dry-run">Dispatch dry run</button>
+          <button type="submit" name="intent" value="dispatch">Dispatch</button>
+        </form>
+        <form id="claim-form" class="inline-form" aria-label="Claim task">
+          <label>
+            <span>Task id</span>
+            <input name="task_id" aria-label="Claim task id" maxlength="160" placeholder="t_…" />
+          </label>
+          <label>
+            <span>TTL seconds</span>
+            <input name="ttl" type="number" min="30" max="86400" value="900" />
+          </label>
+          <label>
+            <span>Type CLAIM</span>
+            <input name="confirm" aria-label="Claim confirmation" maxlength="5" placeholder="CLAIM" />
+          </label>
+          <button type="submit">Claim task</button>
+        </form>
+        <pre data-testid="execution-output" class="execution-output">Execution output will appear here.</pre>
       </section>
 
       <section class="ops-bar" aria-label="Board refresh and filters">
