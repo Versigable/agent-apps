@@ -11,6 +11,8 @@ Environment=PREVIEW_PORT=4175
 Environment=PREVIEW_PUBLIC_URL=https://app-preview.ninjaprivacy.org
 Environment=PREVIEW_SURFACE=apps
 Environment=HERMES_BIN=/home/merquery/.local/bin/hermes
+Environment=KANBAN_READONLY=false
+Environment=KANBAN_WRITE_AUTHOR=app-preview
 ExecStart=/usr/bin/env npm run serve:preview
 Restart=on-failure
 RestartSec=5

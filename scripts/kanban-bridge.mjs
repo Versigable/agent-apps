@@ -8,6 +8,7 @@ const execFileAsync = promisify(execFile);
 
 const BOARD_COLUMNS = ['triage', 'todo', 'ready', 'running', 'blocked', 'done'];
 const DEFAULT_FIXTURE_PATH = path.join('apps', 'kanban', 'fixtures', 'default-board.json');
+const WRITE_AUTHOR = process.env.KANBAN_WRITE_AUTHOR || 'app-preview';
 
 function parseBoolean(value, defaultValue = true) {
   if (value === undefined || value === null || value === '') return defaultValue;
@@ -24,6 +25,36 @@ function safeBoardName(value) {
   return board;
 }
 
+function safeTaskId(value) {
+  const id = String(value || '');
+  if (!/^[a-zA-Z0-9_.:-]{1,160}$/.test(id)) {
+    const error = new Error('invalid task id');
+    error.statusCode = 400;
+    throw error;
+  }
+  return id;
+}
+
+function cleanText(value, maxLength, field) {
+  const text = String(value || '').trim();
+  if (!text) {
+    const error = new Error(`${field} is required`);
+    error.statusCode = 400;
+    throw error;
+  }
+  if (text.length > maxLength) {
+    const error = new Error(`${field} is too long`);
+    error.statusCode = 400;
+    throw error;
+  }
+  return text;
+}
+
+function optionalText(value, maxLength, field) {
+  if (value === undefined || value === null || value === '') return null;
+  return cleanText(value, maxLength, field);
+}
+
 function resolveMode() {
   const requested = (process.env.KANBAN_MODE || '').toLowerCase();
   if (['fixture', 'live'].includes(requested)) return requested;
@@ -33,6 +64,10 @@ function resolveMode() {
 
 function readOnlyMode() {
   return parseBoolean(process.env.KANBAN_READONLY, true);
+}
+
+function writesEnabled() {
+  return !readOnlyMode();
 }
 
 function publicTask(task) {
@@ -60,6 +95,7 @@ function emptyBoard(board, mode = 'live') {
     board,
     mode,
     readOnly: readOnlyMode(),
+    writesEnabled: writesEnabled(),
     columns: BOARD_COLUMNS.map((name) => ({ name, tasks: [] })),
     tenants: [],
     assignees: [],
@@ -99,12 +135,17 @@ function hermesBin() {
   return process.env.HERMES_BIN || path.join(process.env.HOME || '/home/merquery', '.local', 'bin', 'hermes');
 }
 
-async function liveBoard(board) {
-  const { stdout } = await execFileAsync(hermesBin(), ['kanban', '--board', board, 'list', '--json'], {
-    timeout: 10_000,
+async function runHermesKanban(board, args, options = {}) {
+  const { stdout } = await execFileAsync(hermesBin(), ['kanban', '--board', board, ...args], {
+    timeout: options.timeout || 10_000,
     maxBuffer: 1024 * 1024,
     env: { ...process.env }
   });
+  return stdout;
+}
+
+async function liveBoard(board) {
+  const stdout = await runHermesKanban(board, ['list', '--json']);
   const tasks = JSON.parse(stdout || '[]');
   const payload = emptyBoard(board, 'live');
   const tenants = new Set();
@@ -148,46 +189,154 @@ async function readRequestJson(req) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
+function requireWritable(mode) {
+  if (readOnlyMode()) {
+    const error = new Error('kanban bridge is read-only');
+    error.statusCode = 423;
+    throw error;
+  }
+  if (mode !== 'live') {
+    const error = new Error('kanban writes require live mode');
+    error.statusCode = 409;
+    throw error;
+  }
+}
+
+function parseCreatedTask(stdout) {
+  try {
+    const parsed = JSON.parse(stdout || '{}');
+    return parsed.task || parsed;
+  } catch {
+    return { raw: stdout.trim() };
+  }
+}
+
+async function createTriageTask(board, payload) {
+  const title = cleanText(payload.title, 180, 'title');
+  const body = optionalText(payload.body, 8000, 'body') || '';
+  const assignee = optionalText(payload.assignee, 80, 'assignee');
+  const tenant = optionalText(payload.tenant, 80, 'tenant');
+  const priority = Number(payload.priority || 0);
+  if (!Number.isFinite(priority) || priority < -1000 || priority > 1000) {
+    const error = new Error('priority must be between -1000 and 1000');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const args = [
+    'create', title,
+    '--body', body,
+    '--priority', String(Math.trunc(priority)),
+    '--triage',
+    '--created-by', WRITE_AUTHOR,
+    '--json'
+  ];
+  if (assignee) args.push('--assignee', assignee);
+  if (tenant) args.push('--tenant', tenant);
+  const stdout = await runHermesKanban(board, args);
+  return parseCreatedTask(stdout);
+}
+
+async function commentTask(board, taskId, payload) {
+  const text = cleanText(payload.text, 8000, 'comment');
+  const author = optionalText(payload.author, 80, 'author') || WRITE_AUTHOR;
+  await runHermesKanban(board, ['comment', taskId, text, '--author', author]);
+  return { id: taskId, commented: true };
+}
+
+async function runTaskAction(board, taskId, payload) {
+  const action = String(payload.action || '').toLowerCase();
+  if (action === 'assign') {
+    const assignee = optionalText(payload.assignee, 80, 'assignee') || 'none';
+    await runHermesKanban(board, ['assign', taskId, assignee]);
+    return { id: taskId, action, assignee };
+  }
+  if (action === 'block') {
+    const reason = optionalText(payload.reason, 2000, 'reason') || 'Blocked from app-preview';
+    await runHermesKanban(board, ['block', taskId, reason]);
+    return { id: taskId, action, reason };
+  }
+  if (action === 'unblock') {
+    await runHermesKanban(board, ['unblock', taskId]);
+    return { id: taskId, action };
+  }
+  if (action === 'complete') {
+    const result = optionalText(payload.result, 4000, 'result') || 'Completed from app-preview';
+    await runHermesKanban(board, ['complete', taskId, '--result', result, '--summary', result]);
+    return { id: taskId, action, result };
+  }
+  if (action === 'archive') {
+    await runHermesKanban(board, ['archive', taskId]);
+    return { id: taskId, action };
+  }
+
+  const error = new Error('unsupported task action');
+  error.statusCode = 400;
+  throw error;
+}
+
 export async function handleKanbanRequest(req, res, { repoRoot }) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathName = url.pathname;
   const board = safeBoardName(url.searchParams.get('board'));
   const mode = resolveMode();
 
-  if (pathName === '/api/kanban/health' && req.method === 'GET') {
-    return sendJson(res, 200, {
-      ok: true,
-      service: 'agent-apps-kanban-bridge',
-      mode,
-      board,
-      readOnly: readOnlyMode(),
-      columns: BOARD_COLUMNS
-    });
-  }
+  try {
+    if (pathName === '/api/kanban/health' && req.method === 'GET') {
+      return sendJson(res, 200, {
+        ok: true,
+        service: 'agent-apps-kanban-bridge',
+        mode,
+        board,
+        readOnly: readOnlyMode(),
+        writesEnabled: writesEnabled(),
+        writeMode: writesEnabled() ? 'operator' : 'disabled',
+        allowedWrites: writesEnabled() ? ['create-triage', 'comment', 'assign', 'block', 'unblock', 'complete', 'archive'] : [],
+        columns: BOARD_COLUMNS
+      });
+    }
 
-  if (pathName === '/api/kanban/board' && req.method === 'GET') {
-    const boardPayload = await loadBoard(repoRoot, board);
-    return sendJson(res, 200, boardPayload);
-  }
+    if (pathName === '/api/kanban/board' && req.method === 'GET') {
+      const boardPayload = await loadBoard(repoRoot, board);
+      return sendJson(res, 200, boardPayload);
+    }
 
-  const taskMatch = pathName.match(/^\/api\/kanban\/tasks\/([^/]+)$/);
-  if (taskMatch && req.method === 'GET') {
-    const boardPayload = await loadBoard(repoRoot, board);
-    const task = boardPayload.columns.flatMap((column) => column.tasks).find((item) => item.id === taskMatch[1]);
-    if (!task) return sendJson(res, 404, { error: 'task not found' });
-    return sendJson(res, 200, { board, readOnly: boardPayload.readOnly, task });
-  }
+    if (pathName === '/api/kanban/tasks' && req.method === 'POST') {
+      const payload = await readRequestJson(req);
+      requireWritable(mode);
+      const task = await createTriageTask(board, payload);
+      return sendJson(res, 201, { ok: true, board, readOnly: false, task });
+    }
 
-  if (pathName === '/api/kanban/tasks' && req.method === 'POST') {
-    await readRequestJson(req);
-    return sendJson(res, readOnlyMode() ? 423 : 501, {
-      error: readOnlyMode() ? 'kanban bridge is read-only' : 'triage writes are not implemented in M1',
-      allowedM1Writes: []
-    });
-  }
+    const commentMatch = pathName.match(/^\/api\/kanban\/tasks\/([^/]+)\/comments$/);
+    if (commentMatch && req.method === 'POST') {
+      const payload = await readRequestJson(req);
+      requireWritable(mode);
+      const result = await commentTask(board, safeTaskId(commentMatch[1]), payload);
+      return sendJson(res, 200, { ok: true, board, ...result });
+    }
 
-  if (pathName.startsWith('/api/kanban/')) {
-    return sendJson(res, 404, { error: 'kanban route not found' });
+    const actionMatch = pathName.match(/^\/api\/kanban\/tasks\/([^/]+)\/actions$/);
+    if (actionMatch && req.method === 'POST') {
+      const payload = await readRequestJson(req);
+      requireWritable(mode);
+      const result = await runTaskAction(board, safeTaskId(actionMatch[1]), payload);
+      return sendJson(res, 200, { ok: true, board, ...result });
+    }
+
+    const taskMatch = pathName.match(/^\/api\/kanban\/tasks\/([^/]+)$/);
+    if (taskMatch && req.method === 'GET') {
+      const boardPayload = await loadBoard(repoRoot, board);
+      const task = boardPayload.columns.flatMap((column) => column.tasks).find((item) => item.id === taskMatch[1]);
+      if (!task) return sendJson(res, 404, { error: 'task not found' });
+      return sendJson(res, 200, { board, readOnly: boardPayload.readOnly, writesEnabled: boardPayload.writesEnabled, task });
+    }
+
+    if (pathName.startsWith('/api/kanban/')) {
+      return sendJson(res, 404, { error: 'kanban route not found' });
+    }
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, { error: error.message || 'kanban bridge error' });
   }
 
   return false;

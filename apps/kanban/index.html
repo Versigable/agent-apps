@@ -12,20 +12,40 @@
         <div>
           <p class="eyebrow">agent-apps operator surface</p>
           <h1>Hermes Kanban Board</h1>
-          <p class="lede">A read-safe web view of the local Hermes workflow board for ongoing operator use.</p>
+          <p class="lede">A web control surface for the local Hermes workflow board, with operator writes and no dispatcher execution controls.</p>
         </div>
         <div class="status-card" data-testid="bridge-status">Loading bridge…</div>
       </header>
 
       <section class="safety-banner" data-testid="safety-banner">
-        <strong>Read-only safety mode.</strong>
-        Triage review is visible, but ready promotion and dispatcher controls are locked until Eric approves the workflow.
+        <strong>Loading safety posture.</strong>
+        Checking bridge write mode…
       </section>
 
-      <section class="toolbar" aria-label="Kanban controls">
-        <button type="button" disabled>Create triage card</button>
-        <span class="toolbar-note">M1 intentionally has no dispatch, groomer, or execution controls.</span>
-      </section>
+      <form id="create-task-form" class="toolbar create-card" aria-label="Create triage card">
+        <label>
+          <span>Title</span>
+          <input name="title" required maxlength="180" placeholder="Task title" />
+        </label>
+        <label>
+          <span>Body</span>
+          <textarea name="body" rows="2" maxlength="8000" placeholder="Context, acceptance criteria, links…"></textarea>
+        </label>
+        <label>
+          <span>Assignee</span>
+          <input name="assignee" maxlength="80" placeholder="profile name" />
+        </label>
+        <label>
+          <span>Tenant</span>
+          <input name="tenant" maxlength="80" placeholder="default" />
+        </label>
+        <label>
+          <span>Priority</span>
+          <input name="priority" type="number" min="-1000" max="1000" value="0" />
+        </label>
+        <button type="submit">Create triage card</button>
+        <span class="toolbar-note" data-testid="create-status">Checking write permissions…</span>
+      </form>
 
       <section id="board" class="board" aria-live="polite"></section>
     </main>

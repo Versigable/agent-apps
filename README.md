@@ -86,7 +86,7 @@ For boot-persistent operator app hosting as the `merquery` user:
 scripts/install-app-preview-service.sh
 ```
 
-The app preview user unit lives at `deploy/systemd/user/agent-app-preview.service` and listens on port `4175` with `PREVIEW_SURFACE=apps`. This keeps app previews independently targetable from game previews on port `4173` with `PREVIEW_SURFACE=games`.
+The app preview user unit lives at `deploy/systemd/user/agent-app-preview.service` and listens on port `4175` with `PREVIEW_SURFACE=apps`, `KANBAN_READONLY=false`, and `KANBAN_WRITE_AUTHOR=app-preview`. This keeps app previews independently targetable from game previews on port `4173` with `PREVIEW_SURFACE=games`. The Kanban app can create triage cards and perform operator writes, but it still does not expose dispatcher execution controls or automatic ready promotion.
 
 ## Video artifact workflow
 

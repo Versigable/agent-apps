@@ -7,7 +7,7 @@ async function readJson(filePath) {
   return JSON.parse(await fs.readFile(filePath, 'utf8'));
 }
 
-async function withPreviewSurface(surface, port, callback) {
+async function withPreviewSurface(surface, port, callback, extraEnv = {}) {
   const child = spawn('node', ['scripts/preview-service.mjs'], {
     env: {
       ...process.env,
@@ -15,7 +15,8 @@ async function withPreviewSurface(surface, port, callback) {
       PREVIEW_PORT: String(port),
       PREVIEW_SURFACE: surface,
       PREVIEW_PUBLIC_URL: `http://127.0.0.1:${port}`,
-      KANBAN_MODE: 'fixture'
+      KANBAN_MODE: 'fixture',
+      ...extraEnv
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -155,6 +156,26 @@ test('preview surface mode separates app-preview from game-preview routes', asyn
     expect((await fetch(`${baseUrl}/apps/kanban/`)).status).toBe(403);
     expect((await fetch(`${baseUrl}/api/kanban/health`)).status).toBe(403);
   });
+});
+
+test('kanban write-enabled mode exposes triage creation UI and keeps fixture writes non-mutating', async ({ page }) => {
+  await withPreviewSurface('apps', 4197, async (baseUrl) => {
+    const health = await (await fetch(`${baseUrl}/api/kanban/health`)).json();
+    expect(health).toMatchObject({ readOnly: false, writesEnabled: true });
+
+    const createAttempt = await fetch(`${baseUrl}/api/kanban/tasks`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Fixture write should not persist', body: 'test body', priority: 3 })
+    });
+    expect(createAttempt.status).toBe(409);
+    await expect(createAttempt.json()).resolves.toMatchObject({ error: 'kanban writes require live mode' });
+
+    await page.goto(`${baseUrl}/apps/kanban/`);
+    await expect(page.getByTestId('safety-banner')).toContainText(/writes enabled/i);
+    await expect(page.getByRole('button', { name: /create triage card/i })).toBeEnabled();
+    await expect(page.getByLabel(/title/i)).toBeVisible();
+  }, { KANBAN_READONLY: 'false' });
 });
 
 test('preview service and video workflow scripts are present and executable', async () => {

@@ -12,7 +12,7 @@ test('kanban operator app loads fixture board in read-only safe mode', async ({ 
   await page.goto('/apps/kanban');
   await expect(page.getByRole('heading', { name: 'Hermes Kanban Board' })).toBeVisible();
   await expect(page.getByTestId('safety-banner')).toContainText(/read-only/i);
-  await expect(page.getByTestId('safety-banner')).toContainText(/ready promotion and dispatcher controls are locked/i);
+  await expect(page.getByTestId('safety-banner')).toContainText(/writes are disabled/i);
 
   for (const column of columnNames) {
     await expect(page.getByTestId(`kanban-column-${column}`)).toBeVisible();
@@ -32,6 +32,7 @@ test('kanban operator app loads fixture board in read-only safe mode', async ({ 
   await expect(page.getByTestId('task-drawer')).toContainText('children: 1');
 
   await expect(page.getByRole('button', { name: /create triage card/i })).toBeDisabled();
+  await expect(page.getByTestId('create-status')).toContainText(/read-only/i);
   await expect(page.getByRole('button', { name: /dispatch/i })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /move to ready/i })).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
@@ -44,7 +45,8 @@ test('kanban bridge exposes fixture board without dispatcher controls', async ({
     ok: true,
     service: 'agent-apps-kanban-bridge',
     mode: 'fixture',
-    readOnly: true
+    readOnly: true,
+    writesEnabled: false
   });
 
   const board = await request.get('/api/kanban/board?board=default');
