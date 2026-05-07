@@ -23,6 +23,7 @@ const summaryEls = {
 const columnNames = ['triage', 'todo', 'ready', 'running', 'blocked', 'done'];
 let currentBoard = null;
 let lastRefreshDate = null;
+let activeDrawerTaskId = null;
 
 function text(value, fallback = '—') {
   if (value === undefined || value === null || value === '') return fallback;
@@ -39,11 +40,7 @@ function formatClock(date) {
 }
 
 function taskMeta(task) {
-  return [
-    text(task.tenant, 'no tenant'),
-    text(task.assignee, 'unassigned'),
-    `priority ${Number(task.priority || 0)}`
-  ];
+  return [text(task.tenant, 'no tenant'), text(task.assignee, 'unassigned'), `priority ${Number(task.priority || 0)}`];
 }
 
 function allTasks(board = currentBoard) {
@@ -59,15 +56,19 @@ function setMessage(el, message, isError = false) {
   el.classList.toggle('is-error', isError);
 }
 
-async function postJson(url, payload) {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { accept: 'application/json', 'content-type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+async function requestJson(url, options = {}) {
+  const response = await fetch(url, { headers: { accept: 'application/json', ...(options.headers || {}) }, ...options });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `Request failed: ${response.status}`);
   return data;
+}
+
+async function postJson(url, payload) {
+  return requestJson(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
 }
 
 function taskMatchesFilters(task) {
@@ -86,18 +87,11 @@ function taskMatchesFilters(task) {
 }
 
 function filteredColumns() {
-  return (currentBoard?.columns || []).map((column) => ({
-    ...column,
-    tasks: (column.tasks || []).filter(taskMatchesFilters)
-  }));
+  return (currentBoard?.columns || []).map((column) => ({ ...column, tasks: (column.tasks || []).filter(taskMatchesFilters) }));
 }
 
 function updateFilterOptions() {
-  const preserve = {
-    assignee: filterAssignee.value,
-    tenant: filterTenant.value,
-    status: filterStatus.value
-  };
+  const preserve = { assignee: filterAssignee.value, tenant: filterTenant.value, status: filterStatus.value };
   const tasks = allTasks();
   const assignees = [...new Set(tasks.map((task) => task.assignee).filter(Boolean))].sort();
   const tenants = [...new Set(tasks.map((task) => task.tenant).filter(Boolean))].sort();
@@ -201,6 +195,7 @@ function formField(label, name, options = {}) {
   if (options.type) input.type = options.type;
   if (options.required) input.required = true;
   if (options.value !== undefined) input.value = options.value;
+  if (options.rows) input.rows = options.rows;
   wrap.append(span, input);
   return wrap;
 }
@@ -233,6 +228,147 @@ async function handleCreate(event) {
   }
 }
 
+function line(label, value) {
+  const item = document.createElement('div');
+  item.className = 'detail-line';
+  const key = document.createElement('strong');
+  key.textContent = label;
+  const val = document.createElement('span');
+  val.textContent = text(value);
+  item.append(key, val);
+  return item;
+}
+
+function preBlock(content) {
+  const pre = document.createElement('pre');
+  pre.className = 'drawer-pre';
+  pre.textContent = text(content, '—');
+  return pre;
+}
+
+function renderList(items, emptyText, renderItem) {
+  if (!items?.length) {
+    const empty = document.createElement('p');
+    empty.className = 'empty compact-empty';
+    empty.textContent = emptyText;
+    return empty;
+  }
+  const list = document.createElement('div');
+  list.className = 'timeline-list';
+  items.forEach((item) => list.append(renderItem(item)));
+  return list;
+}
+
+function renderDetailPanel(detail) {
+  const task = detail.task;
+  const panel = document.createElement('div');
+  panel.append(
+    line('Task id', task.id),
+    line('Status', task.status),
+    line('Assignee', task.assignee || 'unassigned'),
+    line('Tenant', task.tenant || 'none'),
+    line('Priority', Number(task.priority || 0)),
+    line('Created', formatDate(task.created_at)),
+    line('Updated', formatDate(task.updated_at)),
+    line('Parents', (detail.dependencies?.parents || []).join(', ') || 'none'),
+    line('Children', (detail.dependencies?.children || []).join(', ') || 'none')
+  );
+  const body = document.createElement('section');
+  body.className = 'drawer-section';
+  body.append(Object.assign(document.createElement('h3'), { textContent: 'Body' }), preBlock(task.body || 'No task body supplied.'));
+  panel.append(body);
+  if (task.latest_summary) panel.append(line('Latest summary', task.latest_summary));
+  return panel;
+}
+
+function renderCommentsEventsPanel(detail) {
+  const panel = document.createElement('div');
+  const commentsHeading = document.createElement('h3');
+  commentsHeading.textContent = 'Comments';
+  panel.append(commentsHeading);
+  panel.append(renderList(detail.comments, 'No comments yet.', (comment) => {
+    const item = document.createElement('article');
+    item.className = 'timeline-item';
+    item.append(line(text(comment.author, 'unknown'), formatDate(comment.created_at)), preBlock(comment.text));
+    return item;
+  }));
+  const eventsHeading = document.createElement('h3');
+  eventsHeading.textContent = 'Events';
+  panel.append(eventsHeading);
+  panel.append(renderList(detail.events, 'No events returned.', (event) => {
+    const item = document.createElement('article');
+    item.className = 'timeline-item';
+    item.append(line(text(event.event || event.type, 'event'), `${text(event.actor, 'system')} · ${formatDate(event.created_at || event.ts)}`));
+    if (event.summary || event.message) item.append(preBlock(event.summary || event.message));
+    return item;
+  }));
+  return panel;
+}
+
+function renderRunsPanel(detail) {
+  return renderList(detail.runs, 'No worker runs yet.', (run) => {
+    const item = document.createElement('article');
+    item.className = 'timeline-item';
+    item.append(line(text(run.profile, 'run'), `${text(run.outcome || run.status)} · ${text(run.elapsed || run.elapsed_seconds)}`));
+    if (run.summary || run.result) item.append(preBlock(run.summary || run.result));
+    return item;
+  });
+}
+
+function renderDiagnosticsPanel(detail) {
+  return renderList(detail.diagnostics, 'No diagnostics for this task.', (diag) => {
+    const item = document.createElement('article');
+    item.className = 'timeline-item';
+    item.append(line(text(diag.severity, 'diagnostic'), text(diag.kind || diag.code)));
+    item.append(preBlock(diag.message || JSON.stringify(diag, null, 2)));
+    return item;
+  });
+}
+
+function renderTabPanel(detail, tab) {
+  if (tab === 'details') return renderDetailPanel(detail);
+  if (tab === 'comments') return renderCommentsEventsPanel(detail);
+  if (tab === 'runs') return renderRunsPanel(detail);
+  if (tab === 'log') return preBlock(detail.log || 'No worker log yet.');
+  if (tab === 'context') return preBlock(detail.context || 'No worker context returned.');
+  if (tab === 'diagnostics') return renderDiagnosticsPanel(detail);
+  return document.createTextNode('Unknown tab');
+}
+
+function appendTabs(container, detail) {
+  const tabs = [
+    ['details', 'Details'],
+    ['comments', 'Comments & Events'],
+    ['runs', 'Runs'],
+    ['log', 'Log'],
+    ['context', 'Context'],
+    ['diagnostics', 'Diagnostics']
+  ];
+  const tabList = document.createElement('div');
+  tabList.className = 'drawer-tabs';
+  tabList.setAttribute('role', 'tablist');
+  const panel = document.createElement('section');
+  panel.className = 'drawer-tab-panel';
+  panel.dataset.testid = 'drawer-tab-panel';
+
+  function activate(tabName) {
+    for (const button of tabList.querySelectorAll('button')) button.setAttribute('aria-selected', String(button.dataset.tab === tabName));
+    panel.replaceChildren(renderTabPanel(detail, tabName));
+  }
+
+  for (const [tabName, label] of tabs) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.role = 'tab';
+    button.dataset.tab = tabName;
+    button.textContent = label;
+    button.addEventListener('click', () => activate(tabName));
+    tabList.append(button);
+  }
+  container.append(tabList, panel);
+  activate('details');
+}
+
 function appendDrawerWriteControls(task) {
   if (!writesEnabled()) return;
 
@@ -246,16 +382,17 @@ function appendDrawerWriteControls(task) {
   const status = document.createElement('p');
   status.className = 'action-status';
   status.dataset.testid = 'drawer-action-status';
-  status.textContent = 'Comment, assign, block, unblock, complete, or archive this card. No dispatcher controls are exposed.';
+  status.textContent = 'Comments, metadata updates, dependency links, recovery actions, and terminal state changes are enabled. Dispatcher controls remain absent.';
   panel.append(status);
+
+  function actionEndpoint(payload) {
+    return postJson(`/api/kanban/tasks/${encodeURIComponent(task.id)}/actions?board=default`, payload);
+  }
 
   const commentForm = document.createElement('form');
   commentForm.className = 'drawer-form';
-  commentForm.append(formField('Comment', 'text', { multiline: true, required: true, placeholder: 'Add operator context…' }));
-  const commentButton = document.createElement('button');
-  commentButton.type = 'submit';
-  commentButton.textContent = 'Add comment';
-  commentForm.append(commentButton);
+  commentForm.append(formField('Comment', 'text', { multiline: true, required: true, rows: 3, placeholder: 'Add operator context…' }));
+  commentForm.append(Object.assign(document.createElement('button'), { type: 'submit', textContent: 'Add comment' }));
   commentForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     try {
@@ -263,6 +400,7 @@ function appendDrawerWriteControls(task) {
       await postJson(`/api/kanban/tasks/${encodeURIComponent(task.id)}/comments?board=default`, { text: new FormData(commentForm).get('text') });
       setMessage(status, 'Comment added. Refreshing board…');
       await refreshBoard();
+      await openDrawerById(task.id);
     } catch (error) {
       setMessage(status, error.message, true);
     }
@@ -272,57 +410,181 @@ function appendDrawerWriteControls(task) {
   const assignForm = document.createElement('form');
   assignForm.className = 'drawer-form compact';
   assignForm.append(formField('Assignee', 'assignee', { placeholder: 'profile or none', value: task.assignee || '' }));
-  const assignButton = document.createElement('button');
-  assignButton.type = 'submit';
-  assignButton.textContent = 'Assign';
-  assignForm.append(assignButton);
+  assignForm.append(Object.assign(document.createElement('button'), { type: 'submit', textContent: 'Assign' }));
   assignForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     try {
       const assignee = new FormData(assignForm).get('assignee') || 'none';
       setMessage(status, 'Assigning…');
-      await postJson(`/api/kanban/tasks/${encodeURIComponent(task.id)}/actions?board=default`, { action: 'assign', assignee });
+      await actionEndpoint({ action: 'assign', assignee });
       setMessage(status, 'Assignment updated. Refreshing board…');
       await refreshBoard();
+      await openDrawerById(task.id);
     } catch (error) {
       setMessage(status, error.message, true);
     }
   });
   panel.append(assignForm);
 
-  const actionRow = document.createElement('div');
-  actionRow.className = 'action-row';
-  const actions = [
-    ['block', 'Block'],
-    ['unblock', 'Unblock'],
-    ['complete', 'Complete'],
-    ['archive', 'Archive']
-  ];
-  for (const [action, label] of actions) {
+  const completeForm = document.createElement('form');
+  completeForm.className = 'drawer-form';
+  completeForm.append(
+    formField('Completion result', 'result', { multiline: true, required: true, rows: 2, placeholder: 'What changed?' }),
+    formField('Handoff summary', 'summary', { multiline: true, rows: 2, placeholder: 'Structured downstream handoff…' }),
+    formField('Metadata JSON', 'metadata', { multiline: true, rows: 2, placeholder: '{"tests_run": ["npm test"]}' })
+  );
+  completeForm.append(Object.assign(document.createElement('button'), { type: 'submit', textContent: 'Complete with result' }));
+  completeForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = new FormData(completeForm);
+    try {
+      setMessage(status, 'Completing…');
+      await actionEndpoint({ action: 'complete', result: form.get('result'), summary: form.get('summary'), metadata: form.get('metadata') });
+      setMessage(status, 'Completed. Refreshing board…');
+      await refreshBoard();
+      drawer.hidden = true;
+    } catch (error) {
+      setMessage(status, error.message, true);
+    }
+  });
+  panel.append(completeForm);
+
+  const blockForm = document.createElement('form');
+  blockForm.className = 'drawer-form compact';
+  blockForm.append(formField('Block reason', 'reason', { placeholder: 'Why blocked?' }));
+  blockForm.append(Object.assign(document.createElement('button'), { type: 'submit', textContent: 'Block' }));
+  blockForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    try {
+      setMessage(status, 'Blocking…');
+      await actionEndpoint({ action: 'block', reason: new FormData(blockForm).get('reason') });
+      setMessage(status, 'Blocked. Refreshing board…');
+      await refreshBoard();
+      await openDrawerById(task.id);
+    } catch (error) {
+      setMessage(status, error.message, true);
+    }
+  });
+  panel.append(blockForm);
+
+  const recoveryForm = document.createElement('form');
+  recoveryForm.className = 'drawer-form';
+  recoveryForm.append(
+    formField('Reassign profile', 'assignee', { placeholder: 'new profile or none', value: task.assignee || '' }),
+    formField('Recovery reason', 'reason', { placeholder: 'Why reclaim/reassign?' })
+  );
+  const recoverRow = document.createElement('div');
+  recoverRow.className = 'action-row';
+  for (const [action, label] of [['reassign', 'Reassign'], ['reassign-reclaim', 'Reassign + reclaim'], ['reclaim', 'Reclaim']]) {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = label;
     button.addEventListener('click', async () => {
-      const reason = action === 'block' ? window.prompt('Block reason?', 'Blocked from app-preview') : undefined;
-      const result = action === 'complete' ? window.prompt('Completion summary?', 'Completed from app-preview') : undefined;
+      const form = new FormData(recoveryForm);
       try {
         setMessage(status, `${label}…`);
-        await postJson(`/api/kanban/tasks/${encodeURIComponent(task.id)}/actions?board=default`, { action, reason, result });
+        if (action === 'reclaim') await actionEndpoint({ action: 'reclaim', reason: form.get('reason') });
+        else await actionEndpoint({ action: 'reassign', assignee: form.get('assignee'), reason: form.get('reason'), reclaim: action === 'reassign-reclaim' });
         setMessage(status, `${label} done. Refreshing board…`);
         await refreshBoard();
-        if (action === 'archive') drawer.hidden = true;
+        await openDrawerById(task.id);
       } catch (error) {
         setMessage(status, error.message, true);
       }
     });
-    actionRow.append(button);
+    recoverRow.append(button);
   }
-  panel.append(actionRow);
+  recoveryForm.append(recoverRow);
+  panel.append(recoveryForm);
+
+  const linkForm = document.createElement('form');
+  linkForm.className = 'drawer-form';
+  linkForm.append(
+    formField('Parent task id', 'parent_id', { placeholder: 'parent id', value: task.id }),
+    formField('Child task id', 'child_id', { placeholder: 'child id' })
+  );
+  const linkRow = document.createElement('div');
+  linkRow.className = 'action-row';
+  for (const [action, label] of [['link', 'Link dependency'], ['unlink', 'Unlink dependency']]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.addEventListener('click', async () => {
+      const form = new FormData(linkForm);
+      try {
+        setMessage(status, `${label}…`);
+        await postJson('/api/kanban/links?board=default', { action, parent_id: form.get('parent_id'), child_id: form.get('child_id') });
+        setMessage(status, `${label} done. Refreshing board…`);
+        await refreshBoard();
+        await openDrawerById(task.id);
+      } catch (error) {
+        setMessage(status, error.message, true);
+      }
+    });
+    linkRow.append(button);
+  }
+  linkForm.append(linkRow);
+  panel.append(linkForm);
+
+  const editForm = document.createElement('form');
+  editForm.className = 'drawer-form';
+  editForm.append(
+    formField('Backfill result', 'result', { multiline: true, rows: 2, placeholder: 'Correct completed task result…' }),
+    formField('Backfill summary', 'summary', { multiline: true, rows: 2, placeholder: 'Correct handoff summary…' }),
+    formField('Backfill metadata JSON', 'metadata', { multiline: true, rows: 2, placeholder: '{"reviewed_by":"operator"}' })
+  );
+  editForm.append(Object.assign(document.createElement('button'), { type: 'submit', textContent: 'Edit completed result' }));
+  editForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = new FormData(editForm);
+    try {
+      setMessage(status, 'Editing completed result…');
+      await actionEndpoint({ action: 'edit', result: form.get('result'), summary: form.get('summary'), metadata: form.get('metadata') });
+      setMessage(status, 'Completed result edited. Refreshing board…');
+      await refreshBoard();
+      await openDrawerById(task.id);
+    } catch (error) {
+      setMessage(status, error.message, true);
+    }
+  });
+  panel.append(editForm);
+
+  const quickRow = document.createElement('div');
+  quickRow.className = 'action-row';
+  for (const [action, label] of [['unblock', 'Unblock'], ['archive', 'Archive']]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.addEventListener('click', async () => {
+      try {
+        setMessage(status, `${label}…`);
+        await actionEndpoint({ action });
+        setMessage(status, `${label} done. Refreshing board…`);
+        await refreshBoard();
+        if (action === 'archive') drawer.hidden = true;
+        else await openDrawerById(task.id);
+      } catch (error) {
+        setMessage(status, error.message, true);
+      }
+    });
+    quickRow.append(button);
+  }
+  panel.append(quickRow);
   drawerBody.append(panel);
 }
 
-function openDrawer(task) {
+async function loadTaskDetail(taskId) {
+  return requestJson(`/api/kanban/tasks/${encodeURIComponent(taskId)}/show?board=default`);
+}
+
+async function openDrawerById(taskId) {
+  const task = allTasks().find((item) => item.id === taskId) || { id: taskId, title: taskId };
+  return openDrawer(task);
+}
+
+async function openDrawer(task) {
   drawer.hidden = false;
+  activeDrawerTaskId = task.id;
   drawerBody.innerHTML = '';
 
   const heading = document.createElement('h2');
@@ -331,36 +593,39 @@ function openDrawer(task) {
 
   const status = document.createElement('p');
   status.className = 'drawer-meta';
-  status.textContent = `${task.status} · ${taskMeta(task).join(' · ')} · updated ${formatDate(task.updated_at)}`;
+  status.textContent = `${task.status || 'unknown'} · ${taskMeta(task).join(' · ')} · updated ${formatDate(task.updated_at)}`;
   drawerBody.append(status);
-
-  const body = document.createElement('p');
-  body.textContent = text(task.body, 'No task body supplied.');
-  drawerBody.append(body);
-
-  const summary = document.createElement('p');
-  summary.className = 'drawer-summary';
-  summary.textContent = task.latest_summary ? `Latest summary: ${task.latest_summary}` : 'No worker summary yet.';
-  drawerBody.append(summary);
 
   const counts = document.createElement('p');
   counts.className = 'drawer-counts';
   counts.textContent = `comments: ${Number(task.comment_count || 0)} · parents: ${Number(task.link_counts?.parents || 0)} · children: ${Number(task.link_counts?.children || 0)}`;
   drawerBody.append(counts);
 
-  const safety = document.createElement('div');
-  safety.className = 'drawer-safety';
-  safety.textContent = writesEnabled()
-    ? 'Operator writes are enabled. Dispatcher execution controls are still intentionally absent.'
-    : 'Execution and write controls are intentionally absent in read-only mode.';
-  drawerBody.append(safety);
-  appendDrawerWriteControls(task);
+  const loading = document.createElement('p');
+  loading.className = 'drawer-summary';
+  loading.textContent = 'Loading task details…';
+  drawerBody.append(loading);
+
+  try {
+    const detail = await loadTaskDetail(task.id);
+    if (activeDrawerTaskId !== task.id) return;
+    loading.remove();
+    appendTabs(drawerBody, detail);
+    const safety = document.createElement('div');
+    safety.className = 'drawer-safety';
+    safety.textContent = writesEnabled()
+      ? 'Operator writes are enabled. Dispatcher execution controls are still intentionally absent.'
+      : 'Execution and write controls are intentionally absent in read-only mode.';
+    drawerBody.append(safety);
+    appendDrawerWriteControls(detail.task || task);
+  } catch (error) {
+    loading.textContent = `Task detail failed: ${error.message}`;
+    loading.classList.add('is-error');
+  }
 }
 
 async function loadBoard() {
-  const response = await fetch('/api/kanban/board?board=default', { headers: { accept: 'application/json' } });
-  if (!response.ok) throw new Error(`Kanban bridge failed: ${response.status}`);
-  return response.json();
+  return requestJson('/api/kanban/board?board=default');
 }
 
 function renderBoard(board) {

@@ -161,6 +161,8 @@ h1 {
 }
 
 .toolbar button,
+.ops-bar button,
+.drawer-tabs button,
 .drawer-form button,
 .action-row button {
   padding: 10px 14px;
@@ -296,7 +298,9 @@ h1 {
 .drawer {
   position: fixed;
   inset: 24px 24px 24px auto;
-  width: min(520px, calc(100vw - 48px));
+  width: min(760px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
   padding: 26px;
   border-radius: 26px;
   background: rgba(8, 13, 24, 0.96);
@@ -325,6 +329,71 @@ h1 {
   padding: 14px;
   background: rgba(14, 165, 233, 0.12);
   color: var(--accent);
+}
+
+.drawer-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.drawer-tabs button[aria-selected="true"] {
+  color: var(--text);
+  border-color: rgba(125, 211, 252, 0.75);
+  background: rgba(14, 165, 233, 0.18);
+}
+
+.drawer-tab-panel {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(15, 23, 42, 0.58);
+}
+
+.detail-line {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.detail-line strong {
+  color: var(--muted);
+}
+
+.drawer-section h3,
+.drawer-tab-panel h3 {
+  margin: 14px 0 8px;
+}
+
+.drawer-pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(8, 13, 24, 0.84);
+  color: var(--text);
+  font: 0.9rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.timeline-list {
+  display: grid;
+  gap: 10px;
+}
+
+.timeline-item {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(8, 13, 24, 0.48);
+}
+
+.compact-empty {
+  margin: 6px 0 12px;
 }
 
 .drawer-actions {

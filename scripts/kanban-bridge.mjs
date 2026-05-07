@@ -55,6 +55,20 @@ function optionalText(value, maxLength, field) {
   return cleanText(value, maxLength, field);
 }
 
+function jsonObject(value, field) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'object' && !Array.isArray(value)) return JSON.stringify(value);
+  try {
+    const parsed = JSON.parse(String(value));
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error('not object');
+    return JSON.stringify(parsed);
+  } catch {
+    const error = new Error(`${field} must be a JSON object`);
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
 function resolveMode() {
   const requested = (process.env.KANBAN_MODE || '').toLowerCase();
   if (['fixture', 'live'].includes(requested)) return requested;
@@ -81,9 +95,9 @@ function publicTask(task) {
     priority: Number(task.priority || 0),
     created_at: task.created_at || null,
     updated_at: task.updated_at || null,
-    latest_summary: task.latest_summary || task.result || null,
-    comment_count: Number(task.comment_count || 0),
-    link_counts: task.link_counts || { parents: 0, children: 0 },
+    latest_summary: task.latest_summary || task.summary || task.result || null,
+    comment_count: Number(task.comment_count || task.comments_count || 0),
+    link_counts: task.link_counts || { parents: Number(task.parent_count || 0), children: Number(task.child_count || 0) },
     progress: task.progress || null,
     warnings: task.warnings || null,
     diagnostics: task.diagnostics || []
@@ -177,7 +191,11 @@ function normalizeBoard(payload, board, mode) {
   return attachSummary(out);
 }
 
-async function fixtureBoard(repoRoot, board) {
+function findTask(boardPayload, taskId) {
+  return boardPayload.columns.flatMap((column) => column.tasks).find((item) => item.id === taskId);
+}
+
+async function readFixturePayload(repoRoot) {
   const fixturePath = process.env.KANBAN_FIXTURE_PATH || DEFAULT_FIXTURE_PATH;
   const fullPath = path.resolve(repoRoot, fixturePath);
   if (!fullPath.startsWith(repoRoot + path.sep)) {
@@ -185,8 +203,34 @@ async function fixtureBoard(repoRoot, board) {
     error.statusCode = 400;
     throw error;
   }
-  const payload = JSON.parse(await fs.readFile(fullPath, 'utf8'));
+  return JSON.parse(await fs.readFile(fullPath, 'utf8'));
+}
+
+async function fixtureBoard(repoRoot, board) {
+  const payload = await readFixturePayload(repoRoot);
   return normalizeBoard(payload, board, 'fixture');
+}
+
+async function fixtureDetail(repoRoot, board, taskId) {
+  const raw = await readFixturePayload(repoRoot);
+  const boardPayload = normalizeBoard(raw, board, 'fixture');
+  const task = findTask(boardPayload, taskId);
+  if (!task) return null;
+  const details = raw.task_details?.[taskId] || {};
+  return {
+    board,
+    mode: 'fixture',
+    readOnly: boardPayload.readOnly,
+    writesEnabled: boardPayload.writesEnabled,
+    task,
+    comments: Array.isArray(details.comments) ? details.comments : [],
+    events: Array.isArray(details.events) ? details.events : [],
+    dependencies: details.dependencies || { parents: [], children: [] },
+    runs: Array.isArray(details.runs) ? details.runs : [],
+    log: details.log || 'No worker log yet.',
+    context: details.context || 'Full worker context would appear here.',
+    diagnostics: Array.isArray(details.diagnostics) ? details.diagnostics : []
+  };
 }
 
 function hermesBin() {
@@ -196,7 +240,7 @@ function hermesBin() {
 async function runHermesKanban(board, args, options = {}) {
   const { stdout } = await execFileAsync(hermesBin(), ['kanban', '--board', board, ...args], {
     timeout: options.timeout || 10_000,
-    maxBuffer: 1024 * 1024,
+    maxBuffer: options.maxBuffer || 1024 * 1024,
     env: { ...process.env }
   });
   return stdout;
@@ -319,18 +363,127 @@ async function runTaskAction(board, taskId, payload) {
     return { id: taskId, action };
   }
   if (action === 'complete') {
-    const result = optionalText(payload.result, 4000, 'result') || 'Completed from app-preview';
-    await runHermesKanban(board, ['complete', taskId, '--result', result, '--summary', result]);
-    return { id: taskId, action, result };
+    const result = optionalText(payload.result, 8000, 'result') || 'Completed from app-preview';
+    const summary = optionalText(payload.summary, 8000, 'summary') || result;
+    const metadata = jsonObject(payload.metadata, 'metadata');
+    const args = ['complete', taskId, '--result', result, '--summary', summary];
+    if (metadata) args.push('--metadata', metadata);
+    await runHermesKanban(board, args);
+    return { id: taskId, action, result, summary };
   }
   if (action === 'archive') {
     await runHermesKanban(board, ['archive', taskId]);
+    return { id: taskId, action };
+  }
+  if (action === 'reclaim') {
+    const reason = optionalText(payload.reason, 2000, 'reason') || 'Reclaimed from app-preview';
+    await runHermesKanban(board, ['reclaim', '--reason', reason, taskId]);
+    return { id: taskId, action, reason };
+  }
+  if (action === 'reassign') {
+    const assignee = optionalText(payload.assignee, 80, 'assignee') || 'none';
+    const reason = optionalText(payload.reason, 2000, 'reason');
+    const args = ['reassign'];
+    if (parseBoolean(payload.reclaim, false)) args.push('--reclaim');
+    if (reason) args.push('--reason', reason);
+    args.push(taskId, assignee);
+    await runHermesKanban(board, args);
+    return { id: taskId, action, assignee, reclaim: parseBoolean(payload.reclaim, false) };
+  }
+  if (action === 'edit') {
+    const result = cleanText(payload.result, 8000, 'result');
+    const summary = optionalText(payload.summary, 8000, 'summary');
+    const metadata = jsonObject(payload.metadata, 'metadata');
+    const args = ['edit', taskId, '--result', result];
+    if (summary) args.push('--summary', summary);
+    if (metadata) args.push('--metadata', metadata);
+    await runHermesKanban(board, args);
     return { id: taskId, action };
   }
 
   const error = new Error('unsupported task action');
   error.statusCode = 400;
   throw error;
+}
+
+async function runLinkAction(board, payload) {
+  const action = String(payload.action || 'link').toLowerCase();
+  const parentId = safeTaskId(payload.parent_id || payload.parentId);
+  const childId = safeTaskId(payload.child_id || payload.childId);
+  if (action === 'link') {
+    await runHermesKanban(board, ['link', parentId, childId]);
+    return { action, parent_id: parentId, child_id: childId };
+  }
+  if (action === 'unlink') {
+    await runHermesKanban(board, ['unlink', parentId, childId]);
+    return { action, parent_id: parentId, child_id: childId };
+  }
+  const error = new Error('unsupported link action');
+  error.statusCode = 400;
+  throw error;
+}
+
+async function loadTaskDetail(repoRoot, board, taskId) {
+  const mode = resolveMode();
+  if (mode === 'fixture') return fixtureDetail(repoRoot, board, taskId);
+  try {
+    const stdout = await runHermesKanban(board, ['show', taskId, '--json']);
+    const parsed = JSON.parse(stdout || '{}');
+    const task = publicTask(parsed.task || parsed);
+    return {
+      board,
+      mode: 'live',
+      readOnly: readOnlyMode(),
+      writesEnabled: writesEnabled(),
+      task,
+      comments: parsed.comments || parsed.task?.comments || [],
+      events: parsed.events || parsed.task?.events || [],
+      dependencies: parsed.dependencies || parsed.links || { parents: parsed.parents || [], children: parsed.children || [] },
+      runs: parsed.runs || [],
+      log: parsed.log || null,
+      context: parsed.context || null,
+      diagnostics: parsed.diagnostics || task.diagnostics || []
+    };
+  } catch (error) {
+    if ((process.env.KANBAN_LIVE_FALLBACK || 'fixture') === 'none') throw error;
+    return fixtureDetail(repoRoot, board, taskId);
+  }
+}
+
+async function taskRuns(repoRoot, board, taskId) {
+  if (resolveMode() === 'fixture') {
+    const detail = await fixtureDetail(repoRoot, board, taskId);
+    return detail ? detail.runs : null;
+  }
+  const stdout = await runHermesKanban(board, ['runs', taskId, '--json']);
+  const parsed = JSON.parse(stdout || '[]');
+  return Array.isArray(parsed) ? parsed : parsed.runs || [];
+}
+
+async function taskLog(repoRoot, board, taskId, tail = '20000') {
+  if (resolveMode() === 'fixture') {
+    const detail = await fixtureDetail(repoRoot, board, taskId);
+    return detail ? detail.log : null;
+  }
+  return (await runHermesKanban(board, ['log', taskId, '--tail', String(tail)], { maxBuffer: 1024 * 1024 })).trim() || 'No worker log yet.';
+}
+
+async function taskContext(repoRoot, board, taskId) {
+  if (resolveMode() === 'fixture') {
+    const detail = await fixtureDetail(repoRoot, board, taskId);
+    return detail ? detail.context : null;
+  }
+  return (await runHermesKanban(board, ['context', taskId], { maxBuffer: 1024 * 1024 })).trim();
+}
+
+async function taskDiagnostics(repoRoot, board, taskId) {
+  if (resolveMode() === 'fixture') {
+    const detail = await fixtureDetail(repoRoot, board, taskId);
+    return detail ? detail.diagnostics : null;
+  }
+  const stdout = await runHermesKanban(board, ['diagnostics', '--task', taskId, '--json']);
+  const parsed = JSON.parse(stdout || '[]');
+  return Array.isArray(parsed) ? parsed : parsed.diagnostics || [];
 }
 
 export async function handleKanbanRequest(req, res, { repoRoot }) {
@@ -349,7 +502,7 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
         readOnly: readOnlyMode(),
         writesEnabled: writesEnabled(),
         writeMode: writesEnabled() ? 'operator' : 'disabled',
-        allowedWrites: writesEnabled() ? ['create-triage', 'comment', 'assign', 'block', 'unblock', 'complete', 'archive'] : [],
+        allowedWrites: writesEnabled() ? ['create-triage', 'comment', 'assign', 'block', 'unblock', 'complete', 'archive', 'reclaim', 'reassign', 'edit', 'link', 'unlink'] : [],
         columns: BOARD_COLUMNS
       });
     }
@@ -364,6 +517,44 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
       requireWritable(mode);
       const task = await createTriageTask(board, payload);
       return sendJson(res, 201, { ok: true, board, readOnly: false, task });
+    }
+
+    if (pathName === '/api/kanban/links' && req.method === 'POST') {
+      const payload = await readRequestJson(req);
+      requireWritable(mode);
+      const result = await runLinkAction(board, payload);
+      return sendJson(res, 200, { ok: true, board, ...result });
+    }
+
+    const detailMatch = pathName.match(/^\/api\/kanban\/tasks\/([^/]+)\/(show|runs|log|context|diagnostics)$/);
+    if (detailMatch && req.method === 'GET') {
+      const taskId = safeTaskId(detailMatch[1]);
+      const type = detailMatch[2];
+      if (type === 'show') {
+        const detail = await loadTaskDetail(repoRoot, board, taskId);
+        if (!detail) return sendJson(res, 404, { error: 'task not found' });
+        return sendJson(res, 200, detail);
+      }
+      if (type === 'runs') {
+        const runs = await taskRuns(repoRoot, board, taskId);
+        if (runs === null) return sendJson(res, 404, { error: 'task not found' });
+        return sendJson(res, 200, { board, task_id: taskId, runs });
+      }
+      if (type === 'log') {
+        const log = await taskLog(repoRoot, board, taskId, url.searchParams.get('tail') || '20000');
+        if (log === null) return sendJson(res, 404, { error: 'task not found' });
+        return sendJson(res, 200, { board, task_id: taskId, log });
+      }
+      if (type === 'context') {
+        const context = await taskContext(repoRoot, board, taskId);
+        if (context === null) return sendJson(res, 404, { error: 'task not found' });
+        return sendJson(res, 200, { board, task_id: taskId, context });
+      }
+      if (type === 'diagnostics') {
+        const diagnostics = await taskDiagnostics(repoRoot, board, taskId);
+        if (diagnostics === null) return sendJson(res, 404, { error: 'task not found' });
+        return sendJson(res, 200, { board, task_id: taskId, diagnostics });
+      }
     }
 
     const commentMatch = pathName.match(/^\/api\/kanban\/tasks\/([^/]+)\/comments$/);
@@ -385,7 +576,7 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
     const taskMatch = pathName.match(/^\/api\/kanban\/tasks\/([^/]+)$/);
     if (taskMatch && req.method === 'GET') {
       const boardPayload = await loadBoard(repoRoot, board);
-      const task = boardPayload.columns.flatMap((column) => column.tasks).find((item) => item.id === taskMatch[1]);
+      const task = findTask(boardPayload, taskMatch[1]);
       if (!task) return sendJson(res, 404, { error: 'task not found' });
       return sendJson(res, 200, { board, readOnly: boardPayload.readOnly, writesEnabled: boardPayload.writesEnabled, task });
     }

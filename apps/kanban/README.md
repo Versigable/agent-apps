@@ -32,6 +32,8 @@ Operator UX affordances:
 - header summary cards for total, active, triage, and blocked counts
 - client-side filters for search, assignee, tenant, and status
 - manual refresh button plus visible last-refresh status
+- task drawer tabs for details, comments/events, runs, logs, context, and diagnostics
+- richer operator forms for comments, assignment, complete result/summary/metadata, block reason, reassign/reclaim, completed-result edits, and dependency link/unlink
 
 Still intentionally absent:
 

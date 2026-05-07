@@ -36,6 +36,20 @@ test('kanban operator app loads fixture board in read-only safe mode', async ({ 
   await expect(page.getByTestId('task-drawer')).toContainText('Do not auto-promote this card.');
   await expect(page.getByTestId('task-drawer')).toContainText('comments: 2');
   await expect(page.getByTestId('task-drawer')).toContainText('children: 1');
+  await expect(page.getByRole('tab', { name: 'Details' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Comments & Events' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Runs' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Log' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Context' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Diagnostics' })).toBeVisible();
+  await expect(page.getByTestId('drawer-tab-panel')).toContainText('Task id');
+  await page.getByRole('tab', { name: 'Comments & Events' }).click();
+  await expect(page.getByTestId('drawer-tab-panel')).toContainText('Operator note: keep in triage.');
+  await expect(page.getByTestId('drawer-tab-panel')).toContainText('created');
+  await page.getByRole('tab', { name: 'Runs' }).click();
+  await expect(page.getByTestId('drawer-tab-panel')).toContainText('No worker runs yet.');
+  await page.getByRole('tab', { name: 'Context' }).click();
+  await expect(page.getByTestId('drawer-tab-panel')).toContainText('Full worker context would appear here.');
 
   await expect(page.getByRole('button', { name: /create triage card/i })).toBeDisabled();
   await expect(page.getByTestId('create-status')).toContainText(/read-only/i);
@@ -94,6 +108,49 @@ test('kanban bridge exposes fixture board without dispatcher controls', async ({
     priority: 5
   });
   expect(JSON.stringify(payload)).not.toMatch(/dispatch|ready-promotion|kanban\.db|\/home\//i);
+});
+
+test('kanban bridge exposes fixture task operator detail endpoints', async ({ request }) => {
+  const taskId = 't_fixture_triage_001';
+
+  const show = await request.get(`/api/kanban/tasks/${taskId}/show?board=default`);
+  expect(show.ok()).toBe(true);
+  const showPayload = await show.json();
+  expect(showPayload).toMatchObject({
+    board: 'default',
+    task: { id: taskId, title: 'Operator review sample' },
+    dependencies: { parents: [], children: ['t_fixture_todo_002'] }
+  });
+  expect(showPayload.comments).toEqual(expect.arrayContaining([{ author: 'Merquery', text: 'Operator note: keep in triage.', created_at: 1778089320 }]));
+  expect(showPayload.events).toEqual(expect.arrayContaining([{ event: 'created', actor: 'fixture', created_at: 1778089200, summary: 'Fixture task created for operator board tests.' }]));
+
+  const runs = await request.get(`/api/kanban/tasks/${taskId}/runs?board=default`);
+  expect(runs.ok()).toBe(true);
+  await expect(runs.json()).resolves.toMatchObject({ task_id: taskId, runs: [] });
+
+  const log = await request.get(`/api/kanban/tasks/${taskId}/log?board=default`);
+  expect(log.ok()).toBe(true);
+  await expect(log.json()).resolves.toMatchObject({ task_id: taskId, log: 'No worker log yet.' });
+
+  const context = await request.get(`/api/kanban/tasks/${taskId}/context?board=default`);
+  expect(context.ok()).toBe(true);
+  await expect(context.json()).resolves.toMatchObject({ task_id: taskId, context: expect.stringContaining('Full worker context') });
+
+  const diagnostics = await request.get(`/api/kanban/tasks/${taskId}/diagnostics?board=default`);
+  expect(diagnostics.ok()).toBe(true);
+  await expect(diagnostics.json()).resolves.toMatchObject({ task_id: taskId, diagnostics: [] });
+});
+
+test('kanban write routes for links and recovery actions stay locked in fixture mode', async ({ request }) => {
+  const action = await request.post('/api/kanban/tasks/t_fixture_triage_001/actions?board=default', {
+    data: { action: 'reassign', assignee: 'frontend-eng', reclaim: true, reason: 'fixture recovery smoke' }
+  });
+  expect(action.status()).toBe(423);
+
+  const link = await request.post('/api/kanban/links?board=default', {
+    data: { action: 'link', parent_id: 't_fixture_triage_001', child_id: 't_fixture_todo_002' }
+  });
+  expect(link.status()).toBe(423);
 });
 
 test('preview service serves kanban app assets while denying private and bridge source paths', async ({ request }) => {

@@ -50,6 +50,69 @@
     { "name": "blocked", "tasks": [] },
     { "name": "done", "tasks": [] }
   ],
+  "task_details": {
+    "t_fixture_triage_001": {
+      "comments": [
+        {
+          "author": "Merquery",
+          "text": "Operator note: keep in triage.",
+          "created_at": 1778089320
+        },
+        {
+          "author": "DrClawBotNik",
+          "text": "Fixture confirms comments render in the drawer.",
+          "created_at": 1778089400
+        }
+      ],
+      "events": [
+        {
+          "event": "created",
+          "actor": "fixture",
+          "created_at": 1778089200,
+          "summary": "Fixture task created for operator board tests."
+        },
+        {
+          "event": "commented",
+          "actor": "Merquery",
+          "created_at": 1778089320,
+          "summary": "Operator note added."
+        }
+      ],
+      "dependencies": {
+        "parents": [],
+        "children": ["t_fixture_todo_002"]
+      },
+      "runs": [],
+      "log": "No worker log yet.",
+      "context": "Full worker context would appear here. Fixture context includes title, body, parent results, and comments.",
+      "diagnostics": []
+    },
+    "t_fixture_todo_002": {
+      "comments": [
+        {
+          "author": "fixture",
+          "text": "Second card verifies filtered drawer loads.",
+          "created_at": 1778089600
+        }
+      ],
+      "events": [
+        {
+          "event": "created",
+          "actor": "fixture",
+          "created_at": 1778089300,
+          "summary": "Second fixture task created."
+        }
+      ],
+      "dependencies": {
+        "parents": ["t_fixture_triage_001"],
+        "children": []
+      },
+      "runs": [],
+      "log": "No worker log yet.",
+      "context": "Full worker context would appear here for the filter fixture task.",
+      "diagnostics": []
+    }
+  },
   "tenants": ["agent-apps", "default"],
   "assignees": ["DrClawBotNik", "Merquery"],
   "latest_event_id": 2,
