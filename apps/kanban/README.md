@@ -26,6 +26,13 @@ Enabled write actions:
 - complete cards
 - archive cards
 
+Operator UX affordances:
+
+- bridge-provided board summary counts (`total`, `active`, `by_status`, `by_assignee`, `by_tenant`)
+- header summary cards for total, active, triage, and blocked counts
+- client-side filters for search, assignee, tenant, and status
+- manual refresh button plus visible last-refresh status
+
 Still intentionally absent:
 
 - dispatcher button

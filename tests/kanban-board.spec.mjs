@@ -11,6 +11,11 @@ test('kanban operator app loads fixture board in read-only safe mode', async ({ 
 
   await page.goto('/apps/kanban');
   await expect(page.getByRole('heading', { name: 'Hermes Kanban Board' })).toBeVisible();
+  await expect(page.getByTestId('summary-total')).toContainText('2');
+  await expect(page.getByTestId('summary-triage')).toContainText('1');
+  await expect(page.getByTestId('summary-active')).toContainText('2');
+  await expect(page.getByTestId('last-refresh')).toContainText(/last refresh/i);
+  await expect(page.getByRole('button', { name: /refresh board/i })).toBeEnabled();
   await expect(page.getByTestId('safety-banner')).toContainText(/read-only/i);
   await expect(page.getByTestId('safety-banner')).toContainText(/writes are disabled/i);
 
@@ -20,6 +25,7 @@ test('kanban operator app loads fixture board in read-only safe mode', async ({ 
 
   const triageColumn = page.getByTestId('kanban-column-triage');
   await expect(triageColumn.getByText('Operator review sample')).toBeVisible();
+  await expect(page.getByText('Draft app-preview filters')).toBeVisible();
   await expect(triageColumn.getByText('default')).toBeVisible();
   await expect(triageColumn.getByText('Merquery')).toBeVisible();
   await expect(triageColumn.getByText('priority 5')).toBeVisible();
@@ -38,6 +44,23 @@ test('kanban operator app loads fixture board in read-only safe mode', async ({ 
   expect(consoleErrors).toEqual([]);
 });
 
+test('kanban operator app filters cards client-side', async ({ page }) => {
+  await page.goto('/apps/kanban/');
+  await page.getByLabel('Search cards').fill('filters');
+  await expect(page.getByText('Draft app-preview filters')).toBeVisible();
+  await expect(page.getByText('Operator review sample')).toHaveCount(0);
+  await expect(page.getByTestId('filter-count')).toContainText('1 of 2');
+
+  await page.getByLabel('Filter by assignee').selectOption('Merquery');
+  await expect(page.getByText('No cards match current filters.')).toBeVisible();
+  await expect(page.getByTestId('filter-count')).toContainText('0 of 2');
+
+  await page.getByLabel('Search cards').fill('');
+  await expect(page.getByText('Operator review sample')).toBeVisible();
+  await expect(page.getByText('Draft app-preview filters')).toHaveCount(0);
+  await expect(page.getByTestId('filter-count')).toContainText('1 of 2');
+});
+
 test('kanban bridge exposes fixture board without dispatcher controls', async ({ request }) => {
   const health = await request.get('/api/kanban/health');
   expect(health.ok()).toBe(true);
@@ -54,6 +77,13 @@ test('kanban bridge exposes fixture board without dispatcher controls', async ({
   const payload = await board.json();
   expect(payload.board).toBe('default');
   expect(payload.readOnly).toBe(true);
+  expect(payload.summary).toMatchObject({
+    total: 2,
+    active: 2,
+    by_status: { triage: 1, todo: 1, ready: 0, running: 0, blocked: 0, done: 0 },
+    by_assignee: { DrClawBotNik: 1, Merquery: 1 },
+    by_tenant: { 'agent-apps': 1, default: 1 }
+  });
   expect(payload.columns.map((column) => column.name)).toEqual(columnNames);
   expect(payload.columns.find((column) => column.name === 'triage').tasks[0]).toMatchObject({
     id: 't_fixture_triage_001',

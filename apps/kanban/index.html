@@ -22,6 +22,53 @@
         Checking bridge write mode…
       </section>
 
+      <section class="summary-grid" aria-label="Board summary">
+        <article class="summary-card">
+          <span>Total</span>
+          <strong data-testid="summary-total">—</strong>
+        </article>
+        <article class="summary-card">
+          <span>Active</span>
+          <strong data-testid="summary-active">—</strong>
+        </article>
+        <article class="summary-card">
+          <span>Triage</span>
+          <strong data-testid="summary-triage">—</strong>
+        </article>
+        <article class="summary-card">
+          <span>Blocked</span>
+          <strong data-testid="summary-blocked">—</strong>
+        </article>
+      </section>
+
+      <section class="ops-bar" aria-label="Board refresh and filters">
+        <button id="refresh-board" type="button">Refresh board</button>
+        <span class="last-refresh" data-testid="last-refresh">Last refresh: never</span>
+        <span class="filter-count" data-testid="filter-count">0 cards</span>
+        <label>
+          <span>Search cards</span>
+          <input id="filter-search" type="search" aria-label="Search cards" placeholder="title, body, summary…" />
+        </label>
+        <label>
+          <span>Assignee</span>
+          <select id="filter-assignee" aria-label="Filter by assignee">
+            <option value="">All assignees</option>
+          </select>
+        </label>
+        <label>
+          <span>Tenant</span>
+          <select id="filter-tenant" aria-label="Tenant">
+            <option value="">All tenants</option>
+          </select>
+        </label>
+        <label>
+          <span>Status</span>
+          <select id="filter-status" aria-label="Status">
+            <option value="">All statuses</option>
+          </select>
+        </label>
+      </section>
+
       <form id="create-task-form" class="toolbar create-card" aria-label="Create triage card">
         <label>
           <span>Title</span>

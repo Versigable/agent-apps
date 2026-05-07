@@ -24,14 +24,34 @@
         }
       ]
     },
-    { "name": "todo", "tasks": [] },
+    {
+      "name": "todo",
+      "tasks": [
+        {
+          "id": "t_fixture_todo_002",
+          "title": "Draft app-preview filters",
+          "body": "Second fixture card so CI can verify summary counts and client-side filters.",
+          "status": "todo",
+          "assignee": "DrClawBotNik",
+          "tenant": "agent-apps",
+          "priority": 2,
+          "created_at": 1778089300,
+          "updated_at": 1778089700,
+          "latest_summary": "Filter this card by assignee, tenant, and text search.",
+          "comment_count": 1,
+          "link_counts": { "parents": 1, "children": 0 },
+          "diagnostics": [],
+          "warnings": null
+        }
+      ]
+    },
     { "name": "ready", "tasks": [] },
     { "name": "running", "tasks": [] },
     { "name": "blocked", "tasks": [] },
     { "name": "done", "tasks": [] }
   ],
-  "tenants": ["default"],
-  "assignees": ["Merquery"],
-  "latest_event_id": 1,
-  "now": 1778089600
+  "tenants": ["agent-apps", "default"],
+  "assignees": ["DrClawBotNik", "Merquery"],
+  "latest_event_id": 2,
+  "now": 1778089800
 }

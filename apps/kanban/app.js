@@ -6,8 +6,23 @@ const createStatus = document.querySelector('[data-testid="create-status"]');
 const drawer = document.querySelector('#drawer');
 const drawerBody = document.querySelector('#drawer-body');
 const drawerClose = document.querySelector('#drawer-close');
+const refreshButton = document.querySelector('#refresh-board');
+const lastRefreshEl = document.querySelector('[data-testid="last-refresh"]');
+const filterCountEl = document.querySelector('[data-testid="filter-count"]');
+const filterSearch = document.querySelector('#filter-search');
+const filterAssignee = document.querySelector('#filter-assignee');
+const filterTenant = document.querySelector('#filter-tenant');
+const filterStatus = document.querySelector('#filter-status');
+const summaryEls = {
+  total: document.querySelector('[data-testid="summary-total"]'),
+  active: document.querySelector('[data-testid="summary-active"]'),
+  triage: document.querySelector('[data-testid="summary-triage"]'),
+  blocked: document.querySelector('[data-testid="summary-blocked"]')
+};
 
+const columnNames = ['triage', 'todo', 'ready', 'running', 'blocked', 'done'];
 let currentBoard = null;
+let lastRefreshDate = null;
 
 function text(value, fallback = '—') {
   if (value === undefined || value === null || value === '') return fallback;
@@ -19,12 +34,20 @@ function formatDate(epochSeconds) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(epochSeconds * 1000));
 }
 
+function formatClock(date) {
+  return new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' }).format(date);
+}
+
 function taskMeta(task) {
   return [
     text(task.tenant, 'no tenant'),
     text(task.assignee, 'unassigned'),
     `priority ${Number(task.priority || 0)}`
   ];
+}
+
+function allTasks(board = currentBoard) {
+  return board?.columns?.flatMap((column) => column.tasks || []) || [];
 }
 
 function writesEnabled() {
@@ -45,6 +68,47 @@ async function postJson(url, payload) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `Request failed: ${response.status}`);
   return data;
+}
+
+function taskMatchesFilters(task) {
+  const query = filterSearch.value.trim().toLowerCase();
+  const assignee = filterAssignee.value;
+  const tenant = filterTenant.value;
+  const status = filterStatus.value;
+  if (assignee && task.assignee !== assignee) return false;
+  if (tenant && task.tenant !== tenant) return false;
+  if (status && task.status !== status) return false;
+  if (!query) return true;
+  const haystack = [task.title, task.body, task.latest_summary, task.assignee, task.tenant, task.status]
+    .map((value) => String(value || '').toLowerCase())
+    .join('\n');
+  return haystack.includes(query);
+}
+
+function filteredColumns() {
+  return (currentBoard?.columns || []).map((column) => ({
+    ...column,
+    tasks: (column.tasks || []).filter(taskMatchesFilters)
+  }));
+}
+
+function updateFilterOptions() {
+  const preserve = {
+    assignee: filterAssignee.value,
+    tenant: filterTenant.value,
+    status: filterStatus.value
+  };
+  const tasks = allTasks();
+  const assignees = [...new Set(tasks.map((task) => task.assignee).filter(Boolean))].sort();
+  const tenants = [...new Set(tasks.map((task) => task.tenant).filter(Boolean))].sort();
+
+  filterAssignee.replaceChildren(new Option('All assignees', ''), ...assignees.map((item) => new Option(item, item)));
+  filterTenant.replaceChildren(new Option('All tenants', ''), ...tenants.map((item) => new Option(item, item)));
+  filterStatus.replaceChildren(new Option('All statuses', ''), ...columnNames.map((item) => new Option(item, item)));
+
+  filterAssignee.value = assignees.includes(preserve.assignee) ? preserve.assignee : '';
+  filterTenant.value = tenants.includes(preserve.tenant) ? preserve.tenant : '';
+  filterStatus.value = columnNames.includes(preserve.status) ? preserve.status : '';
 }
 
 function renderTaskButton(task) {
@@ -101,6 +165,29 @@ function renderColumn(column) {
 
   for (const task of column.tasks) section.append(renderTaskButton(task));
   return section;
+}
+
+function renderFilteredBoard() {
+  const columns = filteredColumns();
+  const visible = columns.reduce((total, column) => total + column.tasks.length, 0);
+  const total = currentBoard?.summary?.total ?? allTasks().length;
+  filterCountEl.textContent = `${visible} of ${total} cards`;
+  if (!visible && total > 0) {
+    const empty = document.createElement('p');
+    empty.className = 'empty no-match';
+    empty.textContent = 'No cards match current filters.';
+    boardEl.replaceChildren(empty);
+    return;
+  }
+  boardEl.replaceChildren(...columns.map(renderColumn));
+}
+
+function renderSummary(board) {
+  const summary = board.summary || {};
+  summaryEls.total.textContent = String(summary.total ?? allTasks(board).length);
+  summaryEls.active.textContent = String(summary.active ?? allTasks(board).filter((task) => task.status !== 'done').length);
+  summaryEls.triage.textContent = String(summary.by_status?.triage ?? 0);
+  summaryEls.blocked.textContent = String(summary.by_status?.blocked ?? 0);
 }
 
 function formField(label, name, options = {}) {
@@ -282,13 +369,23 @@ function renderBoard(board) {
   safetyEl.innerHTML = board.readOnly
     ? '<strong>Read-only safety mode.</strong> Triage review is visible, but writes are disabled.'
     : '<strong>Writes enabled.</strong> You can create triage cards and update card metadata. Dispatcher controls and automatic ready promotion remain absent.';
-  boardEl.replaceChildren(...board.columns.map(renderColumn));
+  renderSummary(board);
+  updateFilterOptions();
+  renderFilteredBoard();
   updateCreateFormState();
 }
 
 async function refreshBoard() {
-  const board = await loadBoard();
-  renderBoard(board);
+  refreshButton.disabled = true;
+  lastRefreshEl.textContent = 'Refreshing…';
+  try {
+    const board = await loadBoard();
+    renderBoard(board);
+    lastRefreshDate = new Date();
+    lastRefreshEl.textContent = `Last refresh: ${formatClock(lastRefreshDate)}`;
+  } finally {
+    refreshButton.disabled = false;
+  }
 }
 
 async function main() {
@@ -305,4 +402,9 @@ drawerClose.addEventListener('click', () => {
 });
 
 createForm.addEventListener('submit', handleCreate);
+refreshButton.addEventListener('click', refreshBoard);
+for (const control of [filterSearch, filterAssignee, filterTenant, filterStatus]) {
+  control.addEventListener('input', renderFilteredBoard);
+  control.addEventListener('change', renderFilteredBoard);
+}
 main();

@@ -90,8 +90,66 @@ function publicTask(task) {
   };
 }
 
-function emptyBoard(board, mode = 'live') {
+function emptyCounts() {
+  return Object.fromEntries(BOARD_COLUMNS.map((name) => [name, 0]));
+}
+
+function incrementCount(target, key) {
+  if (!key) return;
+  target[key] = Number(target[key] || 0) + 1;
+}
+
+function buildSummary(columns) {
+  const byStatus = emptyCounts();
+  const byAssignee = {};
+  const byTenant = {};
+  let total = 0;
+  let active = 0;
+  let withWarnings = 0;
+  let withDiagnostics = 0;
+  let unassigned = 0;
+  let maxPriority = null;
+  let newestUpdatedAt = null;
+
+  for (const column of columns) {
+    const status = BOARD_COLUMNS.includes(column.name) ? column.name : 'todo';
+    for (const task of Array.isArray(column.tasks) ? column.tasks : []) {
+      total += 1;
+      byStatus[status] += 1;
+      if (!['done'].includes(status)) active += 1;
+      if (task.assignee) incrementCount(byAssignee, task.assignee);
+      else unassigned += 1;
+      if (task.tenant) incrementCount(byTenant, task.tenant);
+      if (task.warnings) withWarnings += 1;
+      if (Array.isArray(task.diagnostics) && task.diagnostics.length) withDiagnostics += 1;
+      const priority = Number(task.priority || 0);
+      maxPriority = maxPriority === null ? priority : Math.max(maxPriority, priority);
+      const updatedAt = Number(task.updated_at || task.created_at || 0);
+      if (updatedAt) newestUpdatedAt = newestUpdatedAt === null ? updatedAt : Math.max(newestUpdatedAt, updatedAt);
+    }
+  }
+
   return {
+    total,
+    active,
+    by_status: byStatus,
+    by_assignee: byAssignee,
+    by_tenant: byTenant,
+    unassigned,
+    with_warnings: withWarnings,
+    with_diagnostics: withDiagnostics,
+    max_priority: maxPriority,
+    newest_updated_at: newestUpdatedAt
+  };
+}
+
+function attachSummary(boardPayload) {
+  boardPayload.summary = buildSummary(boardPayload.columns);
+  return boardPayload;
+}
+
+function emptyBoard(board, mode = 'live') {
+  return attachSummary({
     board,
     mode,
     readOnly: readOnlyMode(),
@@ -101,7 +159,7 @@ function emptyBoard(board, mode = 'live') {
     assignees: [],
     latest_event_id: 0,
     now: Math.floor(Date.now() / 1000)
-  };
+  });
 }
 
 function normalizeBoard(payload, board, mode) {
@@ -116,7 +174,7 @@ function normalizeBoard(payload, board, mode) {
   out.assignees = Array.isArray(payload.assignees) ? payload.assignees.filter(Boolean) : [];
   out.latest_event_id = Number(payload.latest_event_id || 0);
   out.now = Number(payload.now || Math.floor(Date.now() / 1000));
-  return out;
+  return attachSummary(out);
 }
 
 async function fixtureBoard(repoRoot, board) {
@@ -159,7 +217,7 @@ async function liveBoard(board) {
   }
   payload.tenants = [...tenants].sort();
   payload.assignees = [...assignees].sort();
-  return payload;
+  return attachSummary(payload);
 }
 
 async function loadBoard(repoRoot, board) {
