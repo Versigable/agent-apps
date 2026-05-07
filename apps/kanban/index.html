@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hermes Kanban Board</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">agent-apps operator surface</p>
+          <h1>Hermes Kanban Board</h1>
+          <p class="lede">A read-safe web view of the local Hermes workflow board for ongoing operator use.</p>
+        </div>
+        <div class="status-card" data-testid="bridge-status">Loading bridge…</div>
+      </header>
+
+      <section class="safety-banner" data-testid="safety-banner">
+        <strong>Read-only safety mode.</strong>
+        Triage review is visible, but ready promotion and dispatcher controls are locked until Eric approves the workflow.
+      </section>
+
+      <section class="toolbar" aria-label="Kanban controls">
+        <button type="button" disabled>Create triage card</button>
+        <span class="toolbar-note">M1 intentionally has no dispatch, groomer, or execution controls.</span>
+      </section>
+
+      <section id="board" class="board" aria-live="polite"></section>
+    </main>
+
+    <aside id="drawer" class="drawer" data-testid="task-drawer" aria-label="Task details" hidden>
+      <button type="button" id="drawer-close" class="drawer-close" aria-label="Close task details">×</button>
+      <div id="drawer-body"></div>
+    </aside>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -4,6 +4,10 @@ Monorepo for agent-developed applications, utilities, and browser-playable exper
 
 ## Current projects
 
+### Hermes Kanban operator app
+
+Read-safe web board for local Hermes Kanban lives under [`apps/kanban/`](./apps/kanban/) and is served by the preview service at `/apps/kanban/`. The first milestone intentionally locks dispatcher and `ready` promotion controls until the operator workflow is approved.
+
 ### X Radar
 
 Read-only X/Twitter trend radar utilities used by the scheduled Discord digest workflow.

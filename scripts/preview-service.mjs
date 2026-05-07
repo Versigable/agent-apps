@@ -3,6 +3,7 @@ import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { handleKanbanRequest } from './kanban-bridge.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
@@ -39,6 +40,8 @@ function safeStaticPath(urlPath) {
 
   const allowed = normalized.startsWith('games/')
     || normalized === 'games'
+    || normalized.startsWith('apps/kanban/')
+    || normalized === 'apps/kanban'
     || normalized.startsWith('node_modules/three/build/');
   const hasPrivateSegment = normalized.split(/[\\/]+/).some((segment) => segment.startsWith('.'));
   if (!allowed || hasPrivateSegment) return null;
@@ -72,6 +75,9 @@ async function serveStatic(req, res) {
 
 async function handler(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (url.pathname.startsWith('/api/kanban/')) {
+    return handleKanbanRequest(req, res, { repoRoot });
+  }
   if (url.pathname === '/') {
     res.writeHead(302, { location: '/games/arcade/' });
     return res.end();

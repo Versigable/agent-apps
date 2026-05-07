@@ -3,6 +3,7 @@
 __pycache__/
 *.py[cod]
 .env
+.hermes/
 node_modules/
 games/artifacts/test-results/
 games/artifacts/playwright-report/

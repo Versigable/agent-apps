@@ -1,0 +1,37 @@
+{
+  "board": "default",
+  "mode": "fixture",
+  "readOnly": true,
+  "columns": [
+    {
+      "name": "triage",
+      "tasks": [
+        {
+          "id": "t_fixture_triage_001",
+          "title": "Operator review sample",
+          "body": "Do not auto-promote this card. This sample exists so CI can verify the operator board without touching the live Hermes Kanban database.",
+          "status": "triage",
+          "assignee": "Merquery",
+          "tenant": "default",
+          "priority": 5,
+          "created_at": 1778089200,
+          "updated_at": 1778089500,
+          "latest_summary": "Needs operator review before ready. Safe first milestone keeps execution controls locked.",
+          "comment_count": 2,
+          "link_counts": { "parents": 0, "children": 1 },
+          "diagnostics": [],
+          "warnings": null
+        }
+      ]
+    },
+    { "name": "todo", "tasks": [] },
+    { "name": "ready", "tasks": [] },
+    { "name": "running", "tasks": [] },
+    { "name": "blocked", "tasks": [] },
+    { "name": "done", "tasks": [] }
+  ],
+  "tenants": ["default"],
+  "assignees": ["Merquery"],
+  "latest_event_id": 1,
+  "now": 1778089600
+}
