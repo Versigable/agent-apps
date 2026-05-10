@@ -1,0 +1,46 @@
+{
+  "assignees": [
+    {
+      "name": "Merquery",
+      "role": "director / producer / integrator",
+      "source": "agent-apps-operator-roster"
+    },
+    {
+      "name": "DrClawBotNik",
+      "role": "verifier / operator / artifact collector",
+      "source": "agent-apps-operator-roster"
+    },
+    {
+      "name": "Kodor",
+      "role": "coding specialist",
+      "source": "agent-apps-operator-roster"
+    },
+    {
+      "name": "Critic",
+      "role": "review-only specialist",
+      "source": "agent-apps-operator-roster"
+    },
+    {
+      "name": "Architect",
+      "role": "architecture and test-hook specialist",
+      "source": "agent-apps-operator-roster"
+    },
+    {
+      "name": "Scribe",
+      "role": "copy and documentation specialist",
+      "source": "agent-apps-operator-roster"
+    },
+    {
+      "name": "Scout",
+      "role": "research and reconnaissance specialist",
+      "source": "agent-apps-operator-roster"
+    },
+    {
+      "name": "Forge",
+      "role": "implementation specialist",
+      "source": "agent-apps-operator-roster"
+    }
+  ],
+  "tenants": ["default", "agent-apps", "agent-games", "smb1-speedrun"],
+  "workspaces": ["scratch", "worktree"]
+}

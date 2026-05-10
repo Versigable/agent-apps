@@ -144,7 +144,7 @@
         </label>
         <label>
           <span>Tenant</span>
-          <input name="tenant" maxlength="80" placeholder="default" />
+          <input name="tenant" list="tenant-options" maxlength="80" placeholder="default" />
         </label>
         <label>
           <span>Priority</span>
@@ -180,6 +180,7 @@
         <button type="submit">Create triage card</button>
         <span class="toolbar-note" data-testid="create-status">Checking write permissions…</span>
         <datalist id="assignee-options"></datalist>
+        <datalist id="tenant-options"></datalist>
       </form>
 
       <section id="board" class="board" aria-live="polite"></section>

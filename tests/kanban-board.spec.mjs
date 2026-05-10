@@ -158,13 +158,11 @@ test('kanban bridge exposes sanitized boards and assignee roster in fixture mode
 
   const assignees = await request.get('/api/kanban/assignees');
   expect(assignees.ok()).toBe(true);
-  await expect(assignees.json()).resolves.toMatchObject({
-    assignees: [
-      { name: 'default', on_disk: true },
-      { name: 'DrClawBotNik', source: 'fixture-board' },
-      { name: 'Merquery', source: 'fixture-board' }
-    ]
-  });
+  const assigneePayload = await assignees.json();
+  const assigneeNames = assigneePayload.assignees.map((item) => item.name);
+  expect(assigneeNames).toEqual(expect.arrayContaining(['default', 'DrClawBotNik', 'Merquery', 'Kodor', 'Critic']));
+  expect(assigneePayload.assignees.find((item) => item.name === 'default')).toMatchObject({ on_disk: true });
+  expect(assigneePayload.assignees.find((item) => item.name === 'Kodor')).toMatchObject({ source: 'agent-apps-operator-roster' });
 
   const createBoard = await request.post('/api/kanban/boards', {
     data: { slug: 'fixture-new', name: 'Fixture New', description: 'fixture locked' }

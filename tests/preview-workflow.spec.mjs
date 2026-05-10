@@ -178,6 +178,28 @@ test('kanban write-enabled mode exposes triage creation UI and keeps fixture wri
   }, { KANBAN_READONLY: 'false' });
 });
 
+test('kanban operator dropdowns include configured agent and tenant rosters even before cards exist', async ({ page }) => {
+  await withPreviewSurface('apps', 4198, async (baseUrl) => {
+    const assignees = await (await fetch(`${baseUrl}/api/kanban/assignees`)).json();
+    const assigneeNames = assignees.assignees.map((item) => item.name);
+    expect(assigneeNames).toEqual(expect.arrayContaining(['default', 'Merquery', 'DrClawBotNik', 'Kodor', 'Critic']));
+
+    const board = await (await fetch(`${baseUrl}/api/kanban/board?board=empty-roster-check`)).json();
+    expect(board.tenants).toEqual(expect.arrayContaining(['default', 'agent-apps', 'agent-games']));
+
+    await page.goto(`${baseUrl}/apps/kanban/?board=empty-roster-check`);
+    await expect(page.getByTestId('assignee-roster')).toContainText('Kodor');
+    await expect(page.getByLabel('Filter by assignee')).toContainText('DrClawBotNik');
+    await expect(page.getByRole('region', { name: 'Board refresh and filters' }).getByLabel('Tenant')).toContainText('agent-apps');
+
+    const createAssigneeOptions = await page.locator('#assignee-options option').evaluateAll((options) => options.map((option) => option.value));
+    expect(createAssigneeOptions).toEqual(expect.arrayContaining(['Merquery', 'Kodor', 'Critic']));
+
+    const createTenantOptions = await page.locator('#tenant-options option').evaluateAll((options) => options.map((option) => option.value));
+    expect(createTenantOptions).toEqual(expect.arrayContaining(['default', 'agent-apps', 'agent-games']));
+  });
+});
+
 test('preview service and video workflow scripts are present and executable', async () => {
   const expected = [
     'scripts/preview-service.mjs',

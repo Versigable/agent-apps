@@ -7,6 +7,7 @@ const boardSelector = document.querySelector('#board-selector');
 const boardStatus = document.querySelector('[data-testid="board-status"]');
 const assigneeRosterEl = document.querySelector('[data-testid="assignee-roster"]');
 const assigneeOptions = document.querySelector('#assignee-options');
+const tenantOptions = document.querySelector('#tenant-options');
 const createStatus = document.querySelector('[data-testid="create-status"]');
 const drawer = document.querySelector('#drawer');
 const drawerBody = document.querySelector('#drawer-body');
@@ -121,8 +122,8 @@ function filteredColumns() {
 function updateFilterOptions() {
   const preserve = { assignee: filterAssignee.value, tenant: filterTenant.value, status: filterStatus.value };
   const tasks = allTasks();
-  const assigneeNames = [...new Set([...currentAssignees.map((item) => item.name), ...tasks.map((task) => task.assignee)].filter(Boolean))].sort();
-  const tenants = [...new Set(tasks.map((task) => task.tenant).filter(Boolean))].sort();
+  const assigneeNames = [...new Set([...currentAssignees.map((item) => item.name), ...(currentBoard?.assignees || []), ...tasks.map((task) => task.assignee)].filter(Boolean))].sort();
+  const tenants = [...new Set([...(currentBoard?.tenants || []), ...tasks.map((task) => task.tenant)].filter(Boolean))].sort();
 
   filterAssignee.replaceChildren(new Option('All assignees', ''), ...assigneeNames.map((item) => new Option(item, item)));
   filterTenant.replaceChildren(new Option('All tenants', ''), ...tenants.map((item) => new Option(item, item)));
@@ -134,8 +135,10 @@ function updateFilterOptions() {
 }
 
 function updateAssigneeRoster() {
-  const names = currentAssignees.map((item) => item.name).filter(Boolean);
+  const names = [...new Set([...currentAssignees.map((item) => item.name), ...(currentBoard?.assignees || [])].filter(Boolean))].sort();
+  const tenants = [...new Set([...(currentBoard?.tenants || []), ...allTasks().map((task) => task.tenant)].filter(Boolean))].sort();
   assigneeOptions.replaceChildren(...names.map((name) => new Option(name, name)));
+  tenantOptions?.replaceChildren(...tenants.map((name) => new Option(name, name)));
   assigneeRosterEl.textContent = names.length ? `Assignees: ${names.join(', ')}` : 'Assignees: none discovered';
 }
 
@@ -776,6 +779,7 @@ function renderBoard(board) {
     ? '<strong>Read-only safety mode.</strong> Triage review is visible, but writes are disabled.'
     : '<strong>Writes enabled.</strong> You can create triage cards and update card metadata. Dispatcher controls and automatic ready promotion remain absent.';
   renderSummary(board);
+  updateAssigneeRoster();
   updateFilterOptions();
   renderFilteredBoard();
   updateCreateFormState();

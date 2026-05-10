@@ -34,6 +34,8 @@ Operator UX affordances:
 - manual refresh with visible last-refresh status
 - board selector plus create-board form via constrained `/api/kanban/boards`
 - real assignee roster from `/api/kanban/assignees` used in filters and create form suggestions
+- project operator roster from `apps/kanban/operator-roster.json` merged with live Hermes profiles/board assignees so empty boards still show Merquery, DrClawBotNik, Kodor, Critic, and helper agents
+- tenant suggestions from live cards plus the operator roster, used in filters and create-card suggestions
 - full create-card payload fields: triage/direct creation, workspace, parent IDs, forced skills, max runtime, and idempotency key
 - high-friction execution panel backed by `/api/kanban/execution/status`, `/api/kanban/execution/dispatch`, and `/api/kanban/tasks/:id/claim`
 - dispatch requires typing `DISPATCH`; claim requires typing `CLAIM`; both remain disabled unless the bridge is writable and `KANBAN_EXECUTION_ENABLED=true`
