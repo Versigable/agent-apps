@@ -20,6 +20,10 @@ def is_low_signal(post: Post) -> bool:
 
 def _topic_relevance(post: Post) -> float:
     haystack = post.text.lower()
+    if post.topic == "source watchlist":
+        source_bonus = 8.0 if post.author_username.lower() in {"alexfinn", "steipete"} else 0.0
+        bonus_terms = ["openclaw", "agent", "agents", "llm", "api", "vibe", "coding", "ai", "claude", "codex"]
+        return source_bonus + sum(1 for term in bonus_terms if term in haystack) * 0.5
     topic_terms = [t for t in re.split(r"\W+", post.topic.lower()) if len(t) > 2]
     if not topic_terms:
         return 0.0

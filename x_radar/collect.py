@@ -10,7 +10,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from .config import RadarConfig
+from .config import RadarConfig, SOURCE_WATCHLIST_TOPIC
 from .models import Metrics, Post
 
 
@@ -132,15 +132,30 @@ def _account_clause(accounts: Iterable[str]) -> str | None:
     return f"({' OR '.join(clauses)})"
 
 
-def build_search_query(topics: Iterable[str], source_accounts: Iterable[str] = ()) -> str:
+def _normalized_handles(accounts: Iterable[str]) -> set[str]:
+    return {account.strip().removeprefix("@").lower() for account in accounts if account.strip()}
+
+
+def build_search_query(
+    topics: Iterable[str],
+    source_accounts: Iterable[str] = (),
+    include_source_watchlist: bool = False,
+) -> str:
     topics_part = _topic_clause(topics)
     accounts_part = _account_clause(source_accounts)
     if accounts_part:
+        if include_source_watchlist:
+            return f"{accounts_part} lang:en -is:retweet"
         return f"{accounts_part} {topics_part} lang:en -is:retweet"
     return f"{topics_part} lang:en -is:retweet"
 
 
-def parse_x_api_search_response(payload: dict[str, Any], topics: Iterable[str]) -> list[Post]:
+def parse_x_api_search_response(
+    payload: dict[str, Any],
+    topics: Iterable[str],
+    priority_accounts: Iterable[str] = (),
+    include_source_watchlist: bool = False,
+) -> list[Post]:
     users = {
         str(user.get("id")): user
         for user in (payload.get("includes") or {}).get("users") or []
@@ -148,22 +163,25 @@ def parse_x_api_search_response(payload: dict[str, Any], topics: Iterable[str]) 
     }
     posts: list[Post] = []
     topic_list = list(topics)
+    priority_handles = _normalized_handles(priority_accounts)
     for tweet in payload.get("data") or []:
         tweet_id = str(tweet.get("id") or "")
         text = str(tweet.get("text") or "").strip()
         created_raw = tweet.get("created_at")
         if not tweet_id or not text or not created_raw:
             continue
+        user = users.get(str(tweet.get("author_id") or ""), {})
+        username = str(user.get("username") or tweet.get("author_id") or "unknown")
+        name = str(user.get("name") or username)
         topic = _best_topic_for_text(text, topic_list)
         if topic is None:
-            continue
+            if not include_source_watchlist or username.lower() not in priority_handles:
+                continue
+            topic = SOURCE_WATCHLIST_TOPIC
         try:
             created_at = _parse_x_time(str(created_raw))
         except (TypeError, ValueError):
             continue
-        user = users.get(str(tweet.get("author_id") or ""), {})
-        username = str(user.get("username") or tweet.get("author_id") or "unknown")
-        name = str(user.get("name") or username)
         posts.append(
             Post(
                 id=tweet_id,
@@ -184,13 +202,19 @@ def collect_with_x_api(
     topics: Iterable[str],
     max_results: int = 25,
     source_accounts: Iterable[str] = (),
+    priority_accounts: Iterable[str] = (),
+    include_source_watchlist: bool = False,
 ) -> list[Post]:
     token = bearer_token.strip()
     if not token:
         raise XApiError("X_BEARER_TOKEN is empty")
     bounded_max = max(10, min(max_results, 100))
     params = {
-        "query": build_search_query(topics, source_accounts=source_accounts),
+        "query": build_search_query(
+            topics,
+            source_accounts=source_accounts,
+            include_source_watchlist=include_source_watchlist,
+        ),
         "max_results": str(bounded_max),
         "sort_order": "recency",
         "tweet.fields": "created_at,public_metrics,author_id,lang,conversation_id",
@@ -206,17 +230,32 @@ def collect_with_x_api(
         raise XApiError(f"X API HTTP {exc.code}") from exc
     except (URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise XApiError(f"X API request failed: {exc.__class__.__name__}") from exc
-    return parse_x_api_search_response(payload, topics=topics)
+    return parse_x_api_search_response(
+        payload,
+        topics=topics,
+        priority_accounts=priority_accounts,
+        include_source_watchlist=include_source_watchlist,
+    )
 
 
-def collect_posts_from_legacy_payloads(payloads: Iterable[dict[str, Any]], topics: Iterable[str]) -> list[Post]:
+def collect_posts_from_legacy_payloads(
+    payloads: Iterable[dict[str, Any]],
+    topics: Iterable[str],
+    priority_accounts: Iterable[str] = (),
+    include_source_watchlist: bool = False,
+) -> list[Post]:
     posts: list[Post] = []
     topic_list = list(topics)
+    priority_handles = _normalized_handles(priority_accounts)
     for payload in payloads:
+        user = payload.get("user") or {}
+        username = str(user.get("username") or "unknown")
         for tweet in payload.get("tweets") or []:
             topic = _best_topic_for_text(str(tweet.get("text") or ""), topic_list)
             if topic is None:
-                continue
+                if not include_source_watchlist or username.lower() not in priority_handles:
+                    continue
+                topic = SOURCE_WATCHLIST_TOPIC
             one_tweet_payload = {"user": payload.get("user") or {}, "tweets": [tweet]}
             posts.extend(parse_legacy_xurl_user_output(one_tweet_payload, topic=topic))
     return posts
@@ -241,7 +280,12 @@ def collect_with_legacy_xurl(config: RadarConfig) -> list[Post]:
             payloads.append(json.loads(proc.stdout))
         except json.JSONDecodeError:
             continue
-    return collect_posts_from_legacy_payloads(payloads, topics=config.topics)
+    return collect_posts_from_legacy_payloads(
+        payloads,
+        topics=config.topics,
+        priority_accounts=config.priority_accounts,
+        include_source_watchlist=True,
+    )
 
 
 def collect_posts(config: RadarConfig | None = None) -> list[Post]:
@@ -254,6 +298,8 @@ def collect_posts(config: RadarConfig | None = None) -> list[Post]:
                 topics=config.topics,
                 max_results=max(10, config.per_account_limit * len(config.source_accounts)),
                 source_accounts=config.source_accounts,
+                priority_accounts=config.priority_accounts,
+                include_source_watchlist=True,
             )
         except XApiError:
             if not detect_legacy_xurl():

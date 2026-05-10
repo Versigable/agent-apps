@@ -72,6 +72,60 @@ def test_build_search_query_can_focus_curated_source_accounts():
     assert query == '(from:AlexFinn OR from:steipete) ("AI agents" OR "Claude Code") lang:en -is:retweet'
 
 
+def test_build_search_query_can_watch_priority_sources_without_topic_terms():
+    query = build_search_query(
+        ["AI agents", "Claude Code"],
+        source_accounts=["AlexFinn", "@steipete"],
+        include_source_watchlist=True,
+    )
+    assert query == '(from:AlexFinn OR from:steipete) lang:en -is:retweet'
+
+
+def test_parse_x_api_search_response_keeps_priority_source_watchlist_posts():
+    payload = {
+        "data": [
+            {
+                "id": "456",
+                "text": "New essay: the small details of shipping great software",
+                "created_at": "2026-04-24T17:52:19.000Z",
+                "author_id": "u1",
+                "public_metrics": {"like_count": 50},
+            }
+        ],
+        "includes": {"users": [{"id": "u1", "username": "steipete", "name": "Peter Steinberger"}]},
+    }
+    posts = parse_x_api_search_response(
+        payload,
+        topics=["OpenClaw", "local LLM", "X API"],
+        priority_accounts=["steipete"],
+        include_source_watchlist=True,
+    )
+    assert len(posts) == 1
+    assert posts[0].topic == "source watchlist"
+    assert posts[0].author_username == "steipete"
+
+
+def test_parse_x_api_search_response_still_skips_nonpriority_unrelated_posts():
+    payload = {
+        "data": [
+            {
+                "id": "789",
+                "text": "Vacation photos from the beach",
+                "created_at": "2026-04-24T17:52:19.000Z",
+                "author_id": "u1",
+                "public_metrics": {"like_count": 9999},
+            }
+        ],
+        "includes": {"users": [{"id": "u1", "username": "Someone", "name": "Someone"}]},
+    }
+    assert parse_x_api_search_response(
+        payload,
+        topics=["OpenClaw", "local LLM", "X API"],
+        priority_accounts=["steipete"],
+        include_source_watchlist=True,
+    ) == []
+
+
 def test_parse_x_api_search_response_normalizes_expanded_users():
     payload = {
         "data": [
@@ -125,7 +179,7 @@ def test_collect_with_x_api_sends_bearer_auth_without_leaking_token(monkeypatch)
 def test_collect_posts_prefers_x_api_when_env_token_exists(monkeypatch):
     sample = [Post(id="1", text="OpenClaw X API", author_username="a", author_name="A", created_at=datetime.now(timezone.utc), url="u", topic="OpenClaw", metrics=Metrics())]
     monkeypatch.setenv("X_BEARER_TOKEN", "token")
-    monkeypatch.setattr("x_radar.collect.collect_with_x_api", lambda token, topics, max_results, source_accounts=(): sample)
+    monkeypatch.setattr("x_radar.collect.collect_with_x_api", lambda token, topics, max_results, source_accounts=(), priority_accounts=(), include_source_watchlist=False: sample)
     monkeypatch.setattr("x_radar.collect.collect_with_legacy_xurl", lambda config: [])
     assert collect_posts() == sample
 
@@ -133,7 +187,7 @@ def test_collect_posts_prefers_x_api_when_env_token_exists(monkeypatch):
 def test_collect_posts_falls_back_to_legacy_when_x_api_errors(monkeypatch):
     sample = [Post(id="1", text="OpenClaw X API", author_username="a", author_name="A", created_at=datetime.now(timezone.utc), url="u", topic="OpenClaw", metrics=Metrics())]
     monkeypatch.setenv("X_BEARER_TOKEN", "token")
-    monkeypatch.setattr("x_radar.collect.collect_with_x_api", lambda token, topics, max_results, source_accounts=(): (_ for _ in ()).throw(XApiError("boom")))
+    monkeypatch.setattr("x_radar.collect.collect_with_x_api", lambda token, topics, max_results, source_accounts=(), priority_accounts=(), include_source_watchlist=False: (_ for _ in ()).throw(XApiError("boom")))
     monkeypatch.setattr("x_radar.collect.detect_legacy_xurl", lambda: True)
     monkeypatch.setattr("x_radar.collect.collect_with_legacy_xurl", lambda config: sample)
     assert collect_posts() == sample
@@ -159,6 +213,22 @@ def test_legacy_payload_collection_skips_unrelated_posts():
         "user": {"username": "Someone", "name": "Someone"},
     }
     assert collect_posts_from_legacy_payloads([payload], topics=["OpenClaw", "local LLM", "X API"]) == []
+
+
+def test_legacy_payload_collection_keeps_priority_source_watchlist_posts():
+    payload = {
+        "tweets": [{"id": "1", "text": "New essay: shipping great software with taste", "created_at": "2026-04-24T17:52:19.000Z", "public_metrics": {"like_count": 100}}],
+        "user": {"username": "AlexFinn", "name": "Alex Finn"},
+    }
+    posts = collect_posts_from_legacy_payloads(
+        [payload],
+        topics=["OpenClaw", "local LLM", "X API"],
+        priority_accounts=["AlexFinn"],
+        include_source_watchlist=True,
+    )
+    assert len(posts) == 1
+    assert posts[0].topic == "source watchlist"
+    assert posts[0].author_username == "AlexFinn"
 
 
 def test_parse_legacy_xurl_user_output_normalizes_posts():
@@ -216,6 +286,24 @@ def test_rank_posts_deduplicates_filters_and_limits():
     duplicate = Post(id="1", text="AI agents and OpenClaw trend radar", author_username="a", author_name="A", created_at=now, url="u", topic="AI agents", metrics=Metrics(likes=50))
     noisy = Post(id="2", text="crypto airdrop giveaway", author_username="bot", author_name="Bot", created_at=now, url="u", topic="AI agents", metrics=Metrics(likes=999))
     assert rank_posts([noisy, duplicate, good], limit=5, now=now) == [good]
+
+
+def test_render_digest_includes_empty_run_watchlist_guidance():
+    now = datetime(2026, 4, 24, 20, 0, tzinfo=timezone.utc)
+    digest = render_digest([], generated_at=now, max_chars=1200)
+    assert "X Radar" in digest
+    assert "No current-window X posts matched" in digest
+    assert "Fallback watchlist" in digest
+    assert "@AlexFinn" in digest
+    assert "@steipete" in digest
+
+
+def test_render_learning_digest_includes_empty_run_watchlist_guidance():
+    now = datetime(2026, 4, 24, 20, 0, tzinfo=timezone.utc)
+    digest = render_learning_digest([], generated_at=now, max_chars=1200)
+    assert "High-Signal Learning Radar" in digest
+    assert "Fallback watchlist" in digest
+    assert "manual/public-source review" in digest
 
 
 def test_render_digest_includes_required_fields_and_length_guard():
