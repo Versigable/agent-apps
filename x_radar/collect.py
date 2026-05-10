@@ -291,19 +291,36 @@ def collect_with_legacy_xurl(config: RadarConfig) -> list[Post]:
 def collect_posts(config: RadarConfig | None = None) -> list[Post]:
     config = config or RadarConfig()
     bearer_token = os.environ.get("X_BEARER_TOKEN", "").strip()
+    legacy_available = detect_legacy_xurl()
     if bearer_token:
         try:
-            return collect_with_x_api(
-                bearer_token,
-                topics=config.topics,
-                max_results=max(10, config.per_account_limit * len(config.source_accounts)),
-                source_accounts=config.source_accounts,
-                priority_accounts=config.priority_accounts,
-                include_source_watchlist=True,
+            posts: list[Post] = []
+            if config.priority_accounts:
+                posts.extend(
+                    collect_with_x_api(
+                        bearer_token,
+                        topics=config.topics,
+                        max_results=max(10, config.per_account_limit * len(config.priority_accounts)),
+                        source_accounts=config.priority_accounts,
+                        priority_accounts=config.priority_accounts,
+                        include_source_watchlist=True,
+                    )
+                )
+            posts.extend(
+                collect_with_x_api(
+                    bearer_token,
+                    topics=config.topics,
+                    max_results=max(10, config.per_account_limit * len(config.source_accounts)),
+                    source_accounts=config.source_accounts,
+                    priority_accounts=config.priority_accounts,
+                    include_source_watchlist=False,
+                )
             )
+            if posts or not legacy_available:
+                return posts
         except XApiError:
-            if not detect_legacy_xurl():
+            if not legacy_available:
                 raise
-    if detect_legacy_xurl():
+    if legacy_available:
         return collect_with_legacy_xurl(config)
     raise RuntimeError("No supported X read capability detected. Configure X_BEARER_TOKEN or legacy xurl.")

@@ -6,8 +6,10 @@ from .config import DEFAULT_PRIORITY_ACCOUNTS
 from .models import Post
 
 
-def _empty_run_guidance(kind: str, stamp: str) -> str:
-    watched = ", ".join(f"@{handle}" for handle in DEFAULT_PRIORITY_ACCOUNTS)
+def _empty_run_guidance(kind: str, stamp: str, watchlist_accounts: list[str] | None = None) -> str:
+    accounts = watchlist_accounts or DEFAULT_PRIORITY_ACCOUNTS
+    watched = ", ".join(f"@{handle}" for handle in accounts)
+    source_commands = ", ".join(f"`--account {handle} --learning-digest`" for handle in accounts)
     return "\n".join([
         f"# {kind} — {stamp}",
         "",
@@ -15,7 +17,8 @@ def _empty_run_guidance(kind: str, stamp: str) -> str:
         "",
         "**Fallback watchlist:**",
         f"- Priority sources still worth manual/public-source review: {watched}",
-        "- If this repeats, run a source-specific learning pass for `steipete` and `AlexFinn` and follow first-party RSS/blog links.",
+        f"- If this repeats, run source-specific learning pass(es): {source_commands}",
+        "- Follow first-party RSS/blog links for priority sources when X recent search is sparse.",
         "- Keep delivery read-only; promote only concrete lessons into Merquery/OpenClaw tasks.",
     ])
 
@@ -49,13 +52,18 @@ def _truncate(digest: str, max_chars: int) -> str:
     return digest[: max_chars - 20].rstrip() + "\n\n…[truncated]"
 
 
-def render_digest(posts: list[Post], generated_at: datetime | None = None, max_chars: int = 1800) -> str:
+def render_digest(
+    posts: list[Post],
+    generated_at: datetime | None = None,
+    max_chars: int = 1800,
+    watchlist_accounts: list[str] | None = None,
+) -> str:
     if max_chars < 500:
         raise ValueError("max_chars must be at least 500")
     generated_at = generated_at or datetime.now(timezone.utc)
     stamp = generated_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     if not posts:
-        return _empty_run_guidance("X Radar", stamp)
+        return _empty_run_guidance("X Radar", stamp, watchlist_accounts=watchlist_accounts)
     lines = [f"# X Radar — {stamp}", "", "Read-only test digest for Merquery. No X write actions taken.", ""]
     for i, post in enumerate(posts, start=1):
         text = shorten(" ".join(post.text.split()), width=220, placeholder="…")
@@ -84,13 +92,18 @@ def _learning_implication(post: Post) -> str:
     return "Review this as source signal for OpenClaw planning before turning it into execution tasks."
 
 
-def render_learning_digest(posts: list[Post], generated_at: datetime | None = None, max_chars: int = 1800) -> str:
+def render_learning_digest(
+    posts: list[Post],
+    generated_at: datetime | None = None,
+    max_chars: int = 1800,
+    watchlist_accounts: list[str] | None = None,
+) -> str:
     if max_chars < 500:
         raise ValueError("max_chars must be at least 500")
     generated_at = generated_at or datetime.now(timezone.utc)
     stamp = generated_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     if not posts:
-        return _empty_run_guidance("High-Signal Learning Radar", stamp)
+        return _empty_run_guidance("High-Signal Learning Radar", stamp, watchlist_accounts=watchlist_accounts)
     lines = [
         f"# High-Signal Learning Radar — {stamp}",
         "",

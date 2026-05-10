@@ -20,13 +20,19 @@ def _normalize_handle(handle: str) -> str:
 def build_digest(limit: int = 5, max_chars: int = 1800, account: str | None = None, learning_digest: bool = False) -> str:
     if account:
         handle = _normalize_handle(account)
-        config = RadarConfig(digest_limit=limit, source_accounts=[handle], legacy_accounts=[handle])
+        config = RadarConfig(
+            digest_limit=limit,
+            source_accounts=[handle],
+            legacy_accounts=[handle],
+            priority_accounts=[handle],
+        )
     else:
         config = RadarConfig(digest_limit=limit)
     posts = collect_posts(config)
     ranked = rank_posts(posts, limit=limit)
-    renderer = render_learning_digest if learning_digest else render_digest
-    return renderer(ranked, generated_at=datetime.now(timezone.utc), max_chars=max_chars)
+    if learning_digest:
+        return render_learning_digest(ranked, generated_at=datetime.now(timezone.utc), max_chars=max_chars, watchlist_accounts=config.priority_accounts)
+    return render_digest(ranked, generated_at=datetime.now(timezone.utc), max_chars=max_chars, watchlist_accounts=config.priority_accounts)
 
 
 def main(argv: list[str] | None = None) -> int:
