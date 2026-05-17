@@ -14,6 +14,27 @@ from .config import RadarConfig, SOURCE_WATCHLIST_TOPIC
 from .models import Metrics, Post
 
 
+_COLLECTION_WARNINGS: list[str] = []
+
+
+def get_collection_warnings() -> list[str]:
+    return list(_COLLECTION_WARNINGS)
+
+
+def _warn(message: str) -> None:
+    if message not in _COLLECTION_WARNINGS:
+        _COLLECTION_WARNINGS.append(message)
+
+
+def _summarize_process_error(stderr: str) -> str:
+    text = " ".join(line.strip() for line in stderr.splitlines() if line.strip())
+    if "HTTP Error 402" in text or "HTTP 402" in text:
+        return "HTTP 402 Payment Required"
+    if "HTTP Error" in text:
+        return text[text.find("HTTP Error"):][:120]
+    return (text or "unknown error")[:120]
+
+
 class XApiError(RuntimeError):
     """Raised when official X API collection fails safely."""
 
@@ -275,10 +296,12 @@ def collect_with_legacy_xurl(config: RadarConfig) -> list[Post]:
             check=False,
         )
         if proc.returncode != 0:
+            _warn(f"legacy xurl @{account} failed: {_summarize_process_error(proc.stderr)}")
             continue
         try:
             payloads.append(json.loads(proc.stdout))
         except json.JSONDecodeError:
+            _warn(f"legacy xurl @{account} returned invalid JSON")
             continue
     return collect_posts_from_legacy_payloads(
         payloads,
@@ -289,6 +312,7 @@ def collect_with_legacy_xurl(config: RadarConfig) -> list[Post]:
 
 
 def collect_posts(config: RadarConfig | None = None) -> list[Post]:
+    _COLLECTION_WARNINGS.clear()
     config = config or RadarConfig()
     bearer_token = os.environ.get("X_BEARER_TOKEN", "").strip()
     legacy_available = detect_legacy_xurl()
@@ -318,7 +342,8 @@ def collect_posts(config: RadarConfig | None = None) -> list[Post]:
             )
             if posts or not legacy_available:
                 return posts
-        except XApiError:
+        except XApiError as exc:
+            _warn(f"official X API failed: {exc}")
             if not legacy_available:
                 raise
     if legacy_available:

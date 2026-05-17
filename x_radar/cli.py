@@ -4,7 +4,7 @@ import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .collect import collect_posts
+from .collect import collect_posts, get_collection_warnings
 from .config import RadarConfig
 from .rank import rank_posts
 from .render import render_digest, render_learning_digest
@@ -31,8 +31,8 @@ def build_digest(limit: int = 5, max_chars: int = 1800, account: str | None = No
     posts = collect_posts(config)
     ranked = rank_posts(posts, limit=limit)
     if learning_digest:
-        return render_learning_digest(ranked, generated_at=datetime.now(timezone.utc), max_chars=max_chars, watchlist_accounts=config.priority_accounts)
-    return render_digest(ranked, generated_at=datetime.now(timezone.utc), max_chars=max_chars, watchlist_accounts=config.priority_accounts)
+        return render_learning_digest(ranked, generated_at=datetime.now(timezone.utc), max_chars=max_chars, watchlist_accounts=config.priority_accounts, access_warnings=get_collection_warnings())
+    return render_digest(ranked, generated_at=datetime.now(timezone.utc), max_chars=max_chars, watchlist_accounts=config.priority_accounts, access_warnings=get_collection_warnings())
 
 
 def main(argv: list[str] | None = None) -> int:

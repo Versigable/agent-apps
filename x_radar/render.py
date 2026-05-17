@@ -6,10 +6,25 @@ from .config import DEFAULT_PRIORITY_ACCOUNTS
 from .models import Post
 
 
-def _empty_run_guidance(kind: str, stamp: str, watchlist_accounts: list[str] | None = None) -> str:
+def _empty_run_guidance(kind: str, stamp: str, watchlist_accounts: list[str] | None = None, access_warnings: list[str] | None = None) -> str:
     accounts = watchlist_accounts or DEFAULT_PRIORITY_ACCOUNTS
     watched = ", ".join(f"@{handle}" for handle in accounts)
     source_commands = ", ".join(f"`--account {handle} --learning-digest`" for handle in accounts)
+    if access_warnings:
+        warning_lines = [f"- {warning}" for warning in access_warnings[:6]]
+        return "\n".join([
+            f"# {kind} — {stamp}",
+            "",
+            "X collection is currently blocked or degraded; this run did not have a clean source window.",
+            "",
+            "**Access diagnostics:**",
+            *warning_lines,
+            "",
+            "**Fallback watchlist:**",
+            f"- Priority sources still worth manual/public-source review: {watched}",
+            f"- If access is restored, run source-specific learning pass(es): {source_commands}",
+            "- Likely fix for HTTP 402: upgrade/repair X API plan access for the bearer token, or switch the radar to non-X first-party sources.",
+        ])
     return "\n".join([
         f"# {kind} — {stamp}",
         "",
@@ -57,13 +72,14 @@ def render_digest(
     generated_at: datetime | None = None,
     max_chars: int = 1800,
     watchlist_accounts: list[str] | None = None,
+    access_warnings: list[str] | None = None,
 ) -> str:
     if max_chars < 500:
         raise ValueError("max_chars must be at least 500")
     generated_at = generated_at or datetime.now(timezone.utc)
     stamp = generated_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     if not posts:
-        return _empty_run_guidance("X Radar", stamp, watchlist_accounts=watchlist_accounts)
+        return _empty_run_guidance("X Radar", stamp, watchlist_accounts=watchlist_accounts, access_warnings=access_warnings)
     lines = [f"# X Radar — {stamp}", "", "Read-only test digest for Merquery. No X write actions taken.", ""]
     for i, post in enumerate(posts, start=1):
         text = shorten(" ".join(post.text.split()), width=220, placeholder="…")
@@ -97,13 +113,14 @@ def render_learning_digest(
     generated_at: datetime | None = None,
     max_chars: int = 1800,
     watchlist_accounts: list[str] | None = None,
+    access_warnings: list[str] | None = None,
 ) -> str:
     if max_chars < 500:
         raise ValueError("max_chars must be at least 500")
     generated_at = generated_at or datetime.now(timezone.utc)
     stamp = generated_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     if not posts:
-        return _empty_run_guidance("High-Signal Learning Radar", stamp, watchlist_accounts=watchlist_accounts)
+        return _empty_run_guidance("High-Signal Learning Radar", stamp, watchlist_accounts=watchlist_accounts, access_warnings=access_warnings)
     lines = [
         f"# High-Signal Learning Radar — {stamp}",
         "",

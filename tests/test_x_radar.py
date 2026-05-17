@@ -346,6 +346,19 @@ def test_rank_posts_deduplicates_filters_and_limits():
     assert rank_posts([noisy, duplicate, good], limit=5, now=now) == [good]
 
 
+def test_render_digest_reports_access_warnings_instead_of_clean_empty_run():
+    now = datetime(2026, 4, 24, 20, 0, tzinfo=timezone.utc)
+    digest = render_digest(
+        [],
+        generated_at=now,
+        max_chars=1200,
+        access_warnings=["official X API failed: X API HTTP 402", "legacy xurl @AlexFinn failed: HTTP 402 Payment Required"],
+    )
+    assert "X collection is currently blocked" in digest
+    assert "HTTP 402" in digest
+    assert "Likely fix" in digest
+
+
 def test_render_digest_includes_empty_run_watchlist_guidance():
     now = datetime(2026, 4, 24, 20, 0, tzinfo=timezone.utc)
     digest = render_digest([], generated_at=now, max_chars=1200)
