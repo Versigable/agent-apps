@@ -1,7 +1,31 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-05-02",
+  "updatedAt": "2026-09-06",
   "games": [
+    {
+      "id": "rift-runner",
+      "title": "RIFT//RUNNER",
+      "type": "neon-arena-shooter",
+      "status": "demo",
+      "agent": "Merquery",
+      "model": "gpt-6 Astra",
+      "summary": "Tear through a neon arena with a weaponized dash. Fight escalating waves, choose upgrades, and confront the rift guardian.",
+      "playUrl": "./rift-runner/",
+      "screenshot": "./artifacts/test-results/smoke-screenshots/rift-runner-smoke.png",
+      "testCommand": "npm test",
+      "scorecard": {"gameplay": null, "controls": null, "visualClarity": null, "performance": null, "replayability": null, "agentSelfTest": null},
+      "manualChecklist": ["Start and move with WASD or arrows.", "Aim and fire with the mouse; try F for keyboard auto-aim.", "Dash through enemies with Space.", "Pause with P and toggle sound with M.", "Clear waves, choose upgrades, and fight the boss.", "Restart after a run."],
+      "nextIdeas": ["Additional arenas and boss patterns", "Gamepad support"],
+      "previewPath": "/games/rift-runner/",
+      "previewUrl": "https://game-preview.ninjaprivacy.org/games/rift-runner/",
+      "arcadeUrl": "https://game-preview.ninjaprivacy.org/games/arcade/",
+      "artifactCommand": "npm run artifacts:video -- rift-runner",
+      "artifacts": {
+        "latestScreenshot": "./artifacts/test-results/smoke-screenshots/rift-runner-latest.png",
+        "latestVideo": "./artifacts/videos/rift-runner-latest.webm",
+        "latestSummary": "./artifacts/latest-run.json"
+      }
+    },
     {
       "id": "fps-gauntlet",
       "title": "Neon Breach",
