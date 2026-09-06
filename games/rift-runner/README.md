@@ -1,22 +1,39 @@
-# RIFT//RUNNER
+# RIFT//RUNNER — Vector Overdrive
 
-A dependency-free Canvas2D arena shooter built by Merquery with a gpt-6 Astra implementation subagent and orchestrator gameplay/visual QA.
+A Geometry Wars-inspired continuous vector-arena score chase. Original code and visual assets; not a feature-for-feature clone.
 
-Play: https://game-preview.ninjaprivacy.org/games/rift-runner/ (existing homelab sign-in applies).
+Play: https://game-preview.ninjaprivacy.org/games/rift-runner/ (existing homelab sign-in).
 
-## Play
-- WASD / arrows: move.
-- Mouse: aim; hold primary button to fire.
-- Hold F: fire with nearest-enemy auto-aim.
-- Space: phase dash. Contact and lingering afterimage damage each enemy at most once per dash; use it offensively or to evade.
-- P: pause/resume. M: toggle synthesized sound effects.
-- Touch devices: on-screen direction, fire and dash buttons.
+## Controls
+- **WASD / arrows:** move independently of aim.
+- **Mouse + held primary button:** aim and fire.
+- **Hold F:** nearest-enemy auto-aim/fire, also used by touch FIRE.
+- **Space:** phase dash and damaging afterimage; one hit per enemy per dash.
+- **B:** nova bomb. Three charges per run; clears hostiles/projectiles but awards no kills, score or geom drops.
+- **P / M:** pause/resume and mute. Losing browser focus pauses play.
+- Touch direction/fire/dash/bomb buttons on coarse-pointer devices.
 
-Clear hostiles, pick a permanent augmentation, repeat. Every third wave brings the Gatekeeper's radial projectiles. Wave clear repairs 20 hull. Death resets the run. This is an endless score chase, not a campaign with a final victory screen.
+## Evolved arcade rules
+There are no wave-clear menus or between-wave teleports. A continuous director introduces telegraphed enemy packs and raises threat every 15 seconds. The opening is gentle; subsequent tiers increase pack size and arrival frequency. Population caps prevent runaway spawning.
 
-## Implementation and verification
-No network assets, libraries, installs or build step required for the game itself. Serve through the existing preview service.
+Kills drop green **geoms**. Move close to magnetize and collect them before they disappear. Every collected geom raises the current multiplier by one; kills award their base score times that multiplier. Chasing drops creates risk instead of letting the player sit safely in a corner.
 
+The weapon evolves automatically at **10 / 30 / 60 total collected geoms**, reaching tiers 2 / 3 / 4 with broader projectile patterns. These are run upgrades, not permanent account progression. Life loss resets the score multiplier but retains the run's weapon evolution.
+
+Start with **three lives**. Contact costs a life, clears nearby danger and grants respawn protection. Zero lives ends the run. Local personal best survives browser reloads (storage failures are tolerated).
+
+Enemy vocabulary:
+- **Blue seekers:** direct pursuit.
+- **Green weavers:** evade incoming fire laterally.
+- **Pink splitters:** release three fast fragments on death.
+- **Orange singularities:** pull the ship and bend nearby shots; destruction triggers a local chain explosion.
+
+## Visual architecture
+`game.js` owns gameplay, state and effect lifetimes. `renderer.js` is a pure scene consumer: elastic vector lattice, geometric silhouettes, ship afterimages, hot-core tracer fire, sparks, expanding shock rings and an animated title sculpture. One quarter-resolution bloom pass avoids expensive per-particle shadow blurs.
+
+No CDN, external art assets or game build step. Existing repository preview service serves the files.
+
+## Verification
 ```sh
 KANBAN_MODE=fixture npm test
 CI=true KANBAN_MODE=fixture npm run test:ci
@@ -24,10 +41,11 @@ uv run pytest
 ARTIFACT_VIDEO_MS=10000 npm run artifacts:video -- rift-runner
 ```
 
-Focused suite: `npx playwright test tests/rift-runner.spec.mjs tests/rift-arcade.spec.mjs`.
+Focused tests: `npx playwright test tests/rift-runner.spec.mjs tests/rift-renderer.spec.mjs tests/rift-arcade.spec.mjs`.
 
-`window.__gameTest` exposes snapshot, setupCombat, clearWave, setupBossShot, setupLethalCollision and probeAfterimage for deterministic smoke tests. The game root exposes state, wave, health, shots, kills, dash and trail counters. Test hooks are local single-player diagnostics, not competitive anti-cheat boundaries.
+`window.__gameTest.snapshot()` exposes durable state. Deterministic probes test director progression, actual geom attraction/collection and weapon shots, enemy movement/splitting/gravity, life/bomb economics, pause, persistence and afterimage damage. Diagnostics are available in this local single-player demo; no competitive anti-cheat claim.
 
-Known limits: one arena, recurring boss pattern, no saved leaderboard or gamepad support; touch layout and events checked in Chromium emulation, not a physical phone. Sound events tested programmatically; no subjective listening assessment.
+## Limits
+One endless mode and four weapon tiers; no gamepad, online leaderboard, extra modes or account unlocks. Touch tested with browser emulation, not physical devices. Sound generated procedurally, with event tests rather than a subjective listening review.
 
-See `docs/plans/2026-09-06-rift-runner-qa.md` for independent gameplay observations, self-ratings and verification details.
+Built by Merquery with a mechanics subagent; orchestrator handled rendering/UI, pressure tuning, performance profiling, independent playtests and release.

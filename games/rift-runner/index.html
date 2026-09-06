@@ -1,1 +1,31 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RIFT//RUNNER — gpt-6 Astra</title><link rel="stylesheet" href="styles.css"></head><body><main id="game-root" data-state="title"><header><a href="../arcade/">← ARCADE</a><strong>RIFT<span>//</span>RUNNER</strong><small>GPT-6 ASTRA · FIELD BUILD 01</small></header><section class="hud"><div><label>HULL INTEGRITY</label><b id="health">100</b><i><em id="health-bar"></em></i></div><div class="center"><label>SECTOR / WAVE</label><b id="wave">01</b></div><div class="right"><label>SYNC SCORE</label><b id="score">000000</b></div></section><section class="stage"><canvas id="arena" width="1200" height="700" aria-label="Rift Runner neon combat arena"></canvas><div class="sector">ECHO ARRAY <span> / SECTOR 07</span></div><div id="announcement"></div><div id="overlay"><p class="eyebrow">A SIGNAL FROM THE OTHER SIDE</p><h1>RIFT//RUNNER</h1><p class="intro">The breach is open.<br>Be the last thing they see.</p><button id="start">Start run <span>↗</span></button><p class="instructions">MOVE <kbd>WASD</kbd> / <kbd>↑↓←→</kbd> &nbsp; AIM + FIRE <kbd>MOUSE</kbd><br>AUTO FIRE <kbd>F</kbd> &nbsp; PHASE DASH <kbd>SPACE</kbd></p><div class="title-bottom"><span>01 — SURVIVE THE SWARM</span><span>02 — REWIRE YOUR RUN</span><span>03 — BREAK THE CORE</span></div></div></section><footer><div><span class="status-dot"></span><span id="status">AWAITING PILOT</span></div><span id="dash-status">PHASE DRIVE / READY</span><div><button id="pause" aria-label="Pause game">P · PAUSE</button><button id="mute" aria-label="Mute audio">M · SOUND ON</button></div></footer><nav id="touch" aria-label="Touch controls"><div><button data-key="w" aria-label="Move up">↑</button><div><button data-key="a" aria-label="Move left">←</button><button data-key="s" aria-label="Move down">↓</button><button data-key="d" aria-label="Move right">→</button></div></div><div><button data-key="f">FIRE</button><button data-key=" " >DASH</button></div></nav></main><script src="game.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#030711"><title>RIFT//RUNNER — Vector Overdrive</title><link rel="stylesheet" href="styles.css"></head>
+<body><main id="game-root" data-state="title">
+<header><a href="../arcade/">↖ ARCADE</a><strong>RIFT<span>//</span>RUNNER <small>VECTOR OVERDRIVE</small></strong><div class="record">PERSONAL BEST <b id="best">000000</b></div></header>
+<section class="hud" aria-label="Run statistics">
+ <div class="score-block"><label>SCORE</label><b id="score">000000</b></div>
+ <div class="mult-block"><label>MULTIPLIER</label><b id="multiplier">1×</b></div>
+ <div><label>LIVES</label><b id="health">3</b><i><em id="health-bar"></em></i></div>
+ <div><label>NOVA BOMBS · B</label><b id="bombs">3</b></div>
+ <div><label>WEAPON LEVEL</label><b id="weapon">1</b></div>
+ <div class="threat-block"><label>THREAT</label><b id="wave">01</b><span class="geom-count"><b id="geoms">0</b> GEOMS</span></div>
+</section>
+<section class="stage">
+ <canvas id="arena" width="1200" height="700" aria-label="Rift Runner vector combat arena"></canvas>
+ <div class="sector">∞ EVOLVED <span>/ KEEP MOVING. KEEP COLLECTING.</span></div>
+ <div id="announcement" aria-live="polite"></div>
+ <div id="overlay">
+  <p class="eyebrow"><span></span> FIELD BUILD 02 / GPT-6 ASTRA</p>
+  <h1 aria-label="RIFT//RUNNER">RIFT<span>//</span><br>RUNNER<span class="title-period">.</span></h1>
+  <p class="edition">VECTOR OVERDRIVE</p>
+  <p class="intro">Don't just survive.<br><strong>Make the whole grid light up.</strong></p>
+  <button id="start">Start run <span>↗</span></button>
+  <p class="instructions">MOVE <kbd>WASD</kbd> &nbsp; AIM / FIRE <kbd>MOUSE</kbd><br>AUTO-AIM <kbd>F</kbd> &nbsp; DASH <kbd>SPACE</kbd> &nbsp; BOMB <kbd>B</kbd></p>
+  <div class="title-bottom"><span><b>01</b> CHASE THE GEOMS</span><span><b>02</b> BUILD YOUR MULTIPLIER</span><span><b>03</b> LOSE YOURSELF IN THE LIGHT</span></div>
+ </div>
+ <div class="arena-legend" aria-hidden="true"><span class="blue">◇ SEEKER</span><span class="green">⋈ WEAVER</span><span class="pink">▣ SPLITTER</span><span class="orange">◎ SINGULARITY</span></div>
+</section>
+<footer><div><span class="status-dot"></span><span id="status">SYSTEM ARMED</span></div><span id="dash-status">PHASE DRIVE / READY</span><div><button id="pause" aria-label="Pause game">P · PAUSE</button><button id="mute" aria-label="Mute audio">M · SOUND ON</button></div></footer>
+<nav id="touch" aria-label="Touch controls"><div><button data-key="w" aria-label="Move up">↑</button><div><button data-key="a" aria-label="Move left">←</button><button data-key="s" aria-label="Move down">↓</button><button data-key="d" aria-label="Move right">→</button></div></div><div class="touch-actions"><button data-key="f">FIRE</button><button data-key=" ">DASH</button><button data-key="b">BOMB</button></div></nav>
+</main><script src="renderer.js"></script><script src="game.js"></script></body></html>

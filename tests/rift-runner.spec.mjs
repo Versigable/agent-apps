@@ -1,102 +1,169 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 import fs from 'node:fs/promises';
-
-test('wave clear offers upgrade and third wave is a damageable boss', async ({page}) => {
+async function start(page) {
+  await page.goto("/games/rift-runner/?test=1");
+  await page.locator("#start").click();
+}
+test("kill drops magnetic geoms which raise multiplier and unlock spread without a menu", async ({
+  page,
+}) => {
   await start(page);
-  await page.evaluate(() => window.__gameTest.clearWave());
-  await expect(page.locator('#game-root')).toHaveAttribute('data-state','upgrade');
-  await page.getByRole('button',{name:/Overclock/}).click();
-  expect(await page.evaluate(() => window.__gameTest.snapshot().player.fireRate)).toBeLessThan(.16);
-  await expect(page.locator('#game-root')).toHaveAttribute('data-wave','2');
-  await page.evaluate(() => window.__gameTest.clearWave());
-  await page.getByRole('button',{name:/Reinforced/}).click();
-  const boss=await page.evaluate(() => window.__gameTest.snapshot().enemies.find(e=>e.type==='boss'));
-  expect(boss.hp).toBeGreaterThan(100);
-  await page.evaluate(() => window.__gameTest.setupBossShot());
-  await page.keyboard.down('f'); await page.waitForTimeout(400); await page.keyboard.up('f');
-  expect(await page.evaluate(() => window.__gameTest.snapshot().enemies.find(e=>e.type==='boss').hp)).toBeLessThan(boss.hp);
-  await page.evaluate(() => window.__gameTest.clearWave());
-  await expect(page.locator('#game-root')).toHaveAttribute('data-state','upgrade');
-  await expect(page.getByText('CORE SHATTERED', {exact:true})).toBeVisible();
+  const r = await page.evaluate(() => window.__gameTest.probeProgression());
+  expect(r.dropCount).toBeGreaterThan(0);
+  expect(r.attractedDistance).toBeLessThan(r.originalDistance);
+  expect(r.collected).toBeGreaterThanOrEqual(10);
+  expect(r.multiplier).toBeGreaterThan(1);
+  expect(r.weaponTier).toBeGreaterThan(1);
+  expect(r.projectiles).toBeGreaterThan(1);
+  expect(r.spread).toBeGreaterThan(0);
+  expect(r.killScore).toBe(100 * r.multiplier);
+  expect((await snapshot(page)).state).toBe("playing");
 });
-
-test('pause freezes combat, mute toggles, collision ends run and restart resets', async ({page}) => {
-  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+test("enemy archetypes chase, dodge, split and exert gravity with a kill explosion", async ({
+  page,
+}) => {
   await start(page);
-  await page.keyboard.press('p');
-  await expect(page.locator('#game-root')).toHaveAttribute('data-state','paused');
-  const x=await page.evaluate(()=>window.__gameTest.snapshot().player.x);
-  await page.keyboard.down('d');await page.waitForTimeout(180);await page.keyboard.up('d');
-  expect(await page.evaluate(()=>window.__gameTest.snapshot().player.x)).toBe(x);
-  await page.getByRole('button',{name:/Resume run/}).click();
-  await page.keyboard.press('m');
-  await expect(page.locator('#game-root')).toHaveAttribute('data-muted','true');
-  await page.evaluate(()=>window.__gameTest.setupLethalCollision());
-  await expect(page.locator('#game-root')).toHaveAttribute('data-state','gameover');
-  await page.getByRole('button',{name:/Restart run/}).click();
-  await expect(page.locator('#game-root')).toHaveAttribute('data-health','100');
-  await expect(page.locator('#game-root')).toHaveAttribute('data-wave','1');
-  await page.mouse.move(900,400);await page.mouse.down();await page.waitForTimeout(220);await page.mouse.up();
-  expect(await page.evaluate(()=>window.__gameTest.snapshot().shots)).toBeGreaterThan(0);
+  const r = await page.evaluate(() => window.__gameTest.probeEnemies());
+  expect(r.chaserDistanceAfter).toBeLessThan(r.chaserDistanceBefore);
+  expect(Math.abs(r.dodgeY)).toBeGreaterThan(1);
+  expect(r.minis).toBe(3);
+  expect(r.gravityDistanceAfter).toBeLessThan(r.gravityDistanceBefore);
+  expect(r.explosionDamage).toBeGreaterThan(0);
+  expect(r.shockwaves).toBeGreaterThan(0);
+  expect(r.edgeInside).toBe(true);
+});
+test("three lives respawn safely, bombs are limited and cannot farm rewards, restart resets run", async ({
+  page,
+}) => {
+  await start(page);
+  expect((await snapshot(page)).lives).toBe(3);
+  await page.evaluate(() => window.__gameTest.probeProgression());
+  await page.evaluate(() => window.__gameTest.setupCollision());
+  let s = await snapshot(page);
+  expect(s.lives).toBe(2);
+  expect(s.multiplier).toBe(1);
+  expect(s.player.invuln).toBeGreaterThan(1);
+  expect(
+    s.enemies.every(
+      (e) => Math.hypot(e.x - s.player.x, e.y - s.player.y) > 180,
+    ),
+  ).toBe(true);
+  await page.evaluate(() => window.__gameTest.setupCombat("shoot"));
+  const before = await snapshot(page);
+  await page.keyboard.press("b");
+  s = await snapshot(page);
+  expect(s.bombs).toBe(2);
+  expect(s.enemies).toHaveLength(0);
+  expect(s.bullets).toHaveLength(0);
+  expect(s.enemyShots).toHaveLength(0);
+  expect(s.score).toBe(before.score);
+  expect(s.geoms).toHaveLength(before.geoms.length);
+  await page.keyboard.press("b");
+  await page.keyboard.press("b");
+  await page.keyboard.press("b");
+  expect((await snapshot(page)).bombs).toBe(0);
+  await page.evaluate(() => {
+    window.__gameTest.setupCollision();
+    window.__gameTest.setupCollision();
+  });
+  expect((await snapshot(page)).state).toBe("gameover");
+  const best = (await snapshot(page)).best;
+  expect(best).toBeGreaterThan(0);
+  await page.locator("#restart").click();
+  s = await snapshot(page);
+  expect(s.lives).toBe(3);
+  expect(s.bombs).toBe(3);
+  expect(s.score).toBe(0);
+  expect(s.collected).toBe(0);
+  expect(s.weaponTier).toBe(1);
+  expect(s.wave).toBe(1);
+  expect(s.best).toBe(best);
+  await page.reload();
+  expect((await snapshot(page)).best).toBe(best);
+});
+test("pause freezes simulation and effects; keyboard, touch, mouse, mute and bounded dash work", async ({
+  page,
+}) => {
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await start(page);
+  await page.keyboard.down("d");
+  await page.evaluate(() => window.__gameTest.step(0.2));
+  await page.keyboard.up("d");
+  expect((await snapshot(page)).player.x).toBeGreaterThan(620);
+  await page.evaluate(() => window.__gameTest.setupCombat("shoot"));
+  await page.keyboard.down("f");
+  await page.evaluate(() => window.__gameTest.step(0.5));
+  await page.keyboard.up("f");
+  expect((await snapshot(page)).kills).toBeGreaterThan(0);
+  expect((await snapshot(page)).audioEvents).toBeGreaterThan(0);
+  await page.keyboard.press("p");
+  const before = await snapshot(page);
+  await page.evaluate(() => window.__gameTest.step(2));
+  expect((await snapshot(page)).time).toBe(before.time);
+  expect((await snapshot(page)).particles).toEqual(before.particles);
+  await page.locator("#resume").click();
+  await page.keyboard.press("m");
+  expect((await snapshot(page)).muted).toBe(true);
+  const r = await page.evaluate(() => window.__gameTest.probeAfterimage());
+  expect(r.damage).toBe(100);
+  expect(r.repeatDamage).toBe(0);
+  await page
+    .locator('[data-key="d"]')
+    .dispatchEvent("pointerdown", { pointerId: 1 });
+  const x = (await snapshot(page)).player.x;
+  await page.evaluate(() => window.__gameTest.step(0.1));
+  await page
+    .locator('[data-key="d"]')
+    .dispatchEvent("pointerup", { pointerId: 1 });
+  expect((await snapshot(page)).player.x).toBeGreaterThan(x);
+  await page.evaluate(() => window.__gameTest.setupCombat("shoot"));
+  const p = await page.locator("canvas").evaluate((c) => {
+    const r = c.getBoundingClientRect(),
+      s = Math.min(r.width / c.width, r.height / c.height);
+    return {
+      x: r.x + (r.width - c.width * s) / 2 + 750 * s,
+      y: r.y + (r.height - c.height * s) / 2 + 350 * s,
+    };
+  });
+  await page.mouse.move(p.x, p.y);
+  expect((await snapshot(page)).mouse.x).toBeCloseTo(750, 0);
+  const shots = (await snapshot(page)).shots;
+  await page.mouse.down();
+  await page.evaluate(() => window.__gameTest.step(0.4));
+  await page.mouse.up();
+  expect((await snapshot(page)).shots).toBeGreaterThan(shots);
   expect(errors).toEqual([]);
 });
-
-test('touch controls move and fire on narrow viewport without overflow', async ({browser}) => {
-  const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
-  const page=await context.newPage();await page.goto('/games/rift-runner/');
-  await page.getByRole('button',{name:/Start run/}).click();
-  const before=await page.evaluate(()=>window.__gameTest.snapshot().player.x);
-  await page.locator('[data-key="d"]').dispatchEvent('pointerdown',{pointerId:1});
-  await page.waitForTimeout(200);
-  await page.locator('[data-key="d"]').dispatchEvent('pointerup',{pointerId:1});
-  expect(await page.evaluate(()=>window.__gameTest.snapshot().player.x)).toBeGreaterThan(before);
-  await page.locator('[data-key="f"]').dispatchEvent('pointerdown',{pointerId:2});await page.waitForTimeout(200);
-  await page.locator('[data-key="f"]').dispatchEvent('pointerup',{pointerId:2});
-  expect(await page.evaluate(()=>window.__gameTest.snapshot().shots)).toBeGreaterThan(0);
-  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-  await context.close();
-});
-
-test('mouse aim maps contained canvas accurately and mouse shots kill', async ({page}) => {
-  await page.setViewportSize({width:1440,height:900});await start(page);
-  await page.evaluate(()=>window.__gameTest.setupCombat('shoot'));
-  const point=await page.locator('canvas').evaluate(c=>{const r=c.getBoundingClientRect(),scale=Math.min(r.width/c.width,r.height/c.height);return{x:r.x+(r.width-c.width*scale)/2+750*scale,y:r.y+(r.height-c.height*scale)/2+350*scale};});
-  await page.mouse.move(point.x,point.y);
-  await expect.poll(()=>page.evaluate(()=>window.__gameTest.snapshot().mouse.x)).toBeCloseTo(750,0);
-  await page.mouse.down();await page.waitForTimeout(550);await page.mouse.up();
-  expect(await page.evaluate(()=>window.__gameTest.snapshot().kills)).toBeGreaterThan(0);
-});
-
-test('phase afterimage damages delayed pursuer only once per dash', async ({page}) => {
+test("effect lifetimes advance in simulation even with a pure external renderer", async ({
+  page,
+}) => {
   await start(page);
-  const result=await page.evaluate(()=>window.__gameTest.probeAfterimage());
-  expect(result.damage).toBe(100);expect(result.repeatDamage).toBe(0);expect(result.trailHits).toBe(1);
+  const r = await page.evaluate(() => window.__gameTest.probeEffects());
+  expect(r.before).toBeGreaterThan(0);
+  expect(r.after).toBe(0);
+  expect(r.rendererCalls).toBeGreaterThan(0);
 });
-
-async function start(page) {
-  await page.goto('/games/rift-runner/?test=1');
-  await page.getByRole('button', {name:/Start run/i}).click();
-}
-test('autoaim shooting kills enemies and dash damages along its path', async ({page}) => {
+const snapshot = (page) => page.evaluate(() => window.__gameTest.snapshot());
+test("continuous director preserves position on clear and escalates by elapsed time", async ({
+  page,
+}) => {
   await start(page);
-  await page.evaluate(() => window.__gameTest.setupCombat('shoot'));
-  await page.keyboard.down('f'); await page.waitForTimeout(650); await page.keyboard.up('f');
-  expect(await page.evaluate(() => window.__gameTest.snapshot().kills)).toBeGreaterThan(0);
-  await page.evaluate(() => window.__gameTest.setupCombat('dash'));
-  await page.keyboard.down('d'); await page.keyboard.press('Space'); await page.waitForTimeout(180); await page.keyboard.up('d');
-  const s=await page.evaluate(() => window.__gameTest.snapshot());
-  expect(s.dashes).toBe(1); expect(s.dashKills).toBeGreaterThan(0);
-  await expect(page.locator('#game-root')).toHaveAttribute('data-shots-fired',/^[1-9]/);
-});
-
-test('start launches arena and keyboard moves pilot', async ({ page }) => {
-  await page.goto('/games/rift-runner/');
-  await expect(page.getByRole('heading', {name:'RIFT//RUNNER', exact:true})).toBeVisible();
-  await page.getByRole('button', {name:/Start run/i}).click();
-  await expect(page.locator('#game-root')).toHaveAttribute('data-state','playing');
-  const x = await page.evaluate(() => window.__gameTest.snapshot().player.x);
-  await page.keyboard.down('d'); await page.waitForTimeout(250); await page.keyboard.up('d');
-  expect(await page.evaluate(() => window.__gameTest.snapshot().player.x)).toBeGreaterThan(x + 20);
-  await fs.mkdir('games/artifacts/test-results/smoke-screenshots', {recursive:true});
+  const initial = await snapshot(page);
+  expect(initial.enemies.length).toBeGreaterThan(0);
+  expect(initial.enemies.some(e=>e.spawnIn>0)).toBe(true);
+  const result = await page.evaluate(() => {
+    const g = window.__gameTest;
+    g.clearWave();
+    const cleared = g.snapshot();
+    g.step(31, {invulnerable:true});
+    return { cleared, later: g.snapshot() };
+  });
+  expect(result.cleared.state).toBe("playing");
+  expect(result.cleared.player.x).toBe(initial.player.x);
+  expect(result.later.wave).toBeGreaterThan(1);
+  expect(result.later.spawned).toBeGreaterThanOrEqual(45);
+  expect(result.later.enemies.length).toBeLessThanOrEqual(120);
+  await fs.mkdir('games/artifacts/test-results/smoke-screenshots',{recursive:true});
   await page.screenshot({path:'games/artifacts/test-results/smoke-screenshots/rift-runner-smoke.png'});
 });
