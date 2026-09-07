@@ -1,4 +1,83 @@
 import { test, expect } from '@playwright/test';
+
+// Measure rendered stereo PCM, not counters or nominal AudioParam values.
+async function measureSignal(page, action, milliseconds) {
+  return page.evaluate(async ({action, milliseconds}) => {
+    const a = window.a, c = a.ctx;
+    const probe = c.createScriptProcessor(1024, 2, 2), silent = c.createGain();
+    silent.gain.value = 0;
+    a.analyser.connect(probe); probe.connect(silent); silent.connect(c.destination);
+    let sum = 0, count = 0, peak = 0, clipped = 0;
+    probe.onaudioprocess = event => {
+      for (let ch = 0; ch < event.inputBuffer.numberOfChannels; ch++) {
+        for (const sample of event.inputBuffer.getChannelData(ch)) {
+          sum += sample * sample; count++; peak = Math.max(peak, Math.abs(sample));
+          if (Math.abs(sample) >= 1) clipped++;
+        }
+      }
+    };
+    let timer;
+    if (action === 'stress') {
+      a.setVolumes({music:1,sfx:1});
+      timer = setInterval(() => {
+        for (const name of ['shot','geom','dash','splitter','kill','gravity','bomb','death','upgrade']) a.fx(name,{tier:5,x:600});
+      }, 40);
+    }
+    await new Promise(resolve => setTimeout(resolve, milliseconds));
+    clearInterval(timer); a.analyser.disconnect(probe); probe.disconnect(); silent.disconnect();
+    return {rmsDb:20*Math.log10(Math.sqrt(sum/count)),peak,clipped,count};
+  }, {action,milliseconds});
+}
+
+test('rendered default score has useful loudness with headroom under FX stress and settles to mute',async({page,request})=>{
+  await boot(page,request); await page.mouse.click(10,10);
+  await page.evaluate(async()=>{localStorage.removeItem('rift-runner-audio');window.a=new RiftAudio();await a.start();});
+  const score = await measureSignal(page, 'score', 3700);
+  const stress = await measureSignal(page, 'stress', 1600);
+  await page.evaluate(()=>a.setMuted(true)); await page.waitForTimeout(200);
+  const muted = await measureSignal(page, 'mute', 250);
+  console.log('AUDIO_PCM',JSON.stringify({score,stress,muted}));
+  await page.evaluate(()=>a.dispose());
+  expect(score.count).toBeGreaterThan(100000);
+  expect(score.rmsDb).toBeGreaterThan(-29);
+  expect(score.rmsDb).toBeLessThan(-16);
+  expect(stress.clipped).toBe(0); expect(stress.peak).toBeLessThan(.98);
+  expect(muted.peak).toBeLessThan(.0001);
+});
+test('mixer volume and mute changes ramp the rendered signal rather than stepping it',async({page,request})=>{
+  await boot(page,request); await page.mouse.click(10,10);
+  const transitions = await page.evaluate(async()=>{
+    localStorage.removeItem('rift-runner-audio');
+    const results=[];
+    // Offline rendering retains every adjacent PCM sample. Main-thread
+    // ScriptProcessor delivery under CI load is unsuitable for click detection.
+    // Exercise the production mixer setters with real WebAudio gains, not mocks.
+    for(const kind of ['music','sfx','mute']) {
+      const a=new RiftAudio(),c=new OfflineAudioContext(1,12000,48000);
+      a.ctx=c;a.music=c.createGain();a.sfx=c.createGain();a.master=c.createGain();
+      a.music.connect(a.master);a.sfx.connect(a.master);a.master.connect(c.destination);
+      a.settings.music=kind==='sfx'?0:.55;a.settings.sfx=kind==='music'?0:.7;a._gains();
+      const source=c.createConstantSource();source.offset.value=.1;
+      source.connect(a.music);source.connect(a.sfx);source.start();
+      const stopped=c.suspend(.1),rendered=c.startRendering();
+      await stopped;
+      if(kind==='mute')a.setMuted(true);else a.setVolumes({[kind]:0});
+      await c.resume();const data=(await rendered).getChannelData(0);
+      let maxDelta=0;
+      for(let i=1;i<data.length;i++)maxDelta=Math.max(maxDelta,Math.abs(data[i]-data[i-1]));
+      results.push({kind,initial:Math.abs(data[0]),maxDelta,last:Math.abs(data[data.length-1]),count:data.length});
+      source.disconnect();a.music.disconnect();a.sfx.disconnect();a.master.disconnect();
+    }
+    return results;
+  });
+  console.log('AUDIO_RAMPS',JSON.stringify(transitions));
+  for(const result of transitions){
+    expect(result.initial).toBeGreaterThan(.01);expect(result.count).toBeGreaterThan(4000);
+    expect(result.maxDelta).toBeLessThan(result.initial*.1);
+    expect(result.last).toBeLessThan(.0001);
+  }
+});
+
 async function boot(page, request) {
   expect((await request.get('/games/rift-runner/audio.js')).status()).toBe(200);
   await page.goto('/games/arcade/');
@@ -78,11 +157,14 @@ test('gesture lifecycle, independent persistent gains and real capture track', a
   await page.mouse.click(10,10);
   const result=await page.evaluate(async()=>{
     await a.start();a.setVolumes({music:.27,sfx:.63});a.setMuted(true);
+    const targets=a.snapshot().gainTargets; await new Promise(r=>setTimeout(r,60));
     const muted=a.snapshot();const track=a.captureStream().getAudioTracks()[0];
     await a.pause();const paused=a.snapshot();a.setMuted(false);await a.start();
+    await new Promise(r=>setTimeout(r,60));
     const active=a.snapshot();const b=new RiftAudio();const saved=b.snapshot();b.dispose();
-    await a.dispose();return {muted,paused,active,saved,track:track.kind};
+    await a.dispose();return {muted,paused,active,saved,targets,track:track.kind};
   });
+  expect(result.targets).toEqual({music:.27,sfx:.63,master:0});
   expect(result.muted.contextState).toBe('running');expect(result.muted.gains.master).toBe(0);
   expect(result.paused.contextState).toBe('suspended');expect(result.active.contextState).toBe('running');
   expect(result.active.gains.music).toBeCloseTo(.27);expect(result.active.gains.sfx).toBeCloseTo(.63);

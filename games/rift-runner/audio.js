@@ -33,8 +33,15 @@
           this.analyser = c.createAnalyser(); this.analyser.fftSize = 1024;
           this.destination = c.createMediaStreamDestination();
           this.music.connect(this.duck); this.duck.connect(this.compressor); this.sfx.connect(this.compressor);
-          this.compressor.connect(this.master); this.master.connect(c.destination);
-          this.master.connect(this.destination); this.master.connect(this.analyser); this._gains();
+          // Lift the quiet score without changing the saved mixer scale. The final
+          // fast compressor protects both playback and capture during stacked FX.
+          this.makeup = c.createGain(); this.makeup.gain.value = 3;
+          this.limiter = c.createDynamicsCompressor();
+          this.limiter.threshold.value = -4; this.limiter.knee.value = 0;
+          this.limiter.ratio.value = 20; this.limiter.attack.value = 0; this.limiter.release.value = .1;
+          this.compressor.connect(this.master); this.master.connect(this.makeup); this.makeup.connect(this.limiter);
+          this.limiter.connect(c.destination); this.limiter.connect(this.destination);
+          this.limiter.connect(this.analyser); this._gains();
         } catch (_) { return false; }
       }
       try { await this.ctx.resume(); } catch (_) { return false; }
@@ -175,12 +182,28 @@
       this.hum.p.pan.setTargetAtTime(clamp((nearest.x-player.x)/500,-.9,.9),t,.07);
       this.hum.o.frequency.setTargetAtTime(39+10*(1-distance/700),t,.1);
     }
-    _gains() { if (!this.ctx) return; this.music.gain.value=this.settings.music; this.sfx.gain.value=this.settings.sfx; this.master.gain.value=this.settings.muted?0:.72; }
+    _gains() {
+      if (!this.ctx) return;
+      const t=this.ctx.currentTime;
+      for(const [node,value] of [[this.music,this.settings.music],[this.sfx,this.settings.sfx],[this.master,this.settings.muted?0:.72]]) {
+        const p=node.gain;
+        if(!this.gainsInitialized) p.setValueAtTime(value,t);
+        else {
+          // Hold an interrupted ramp at its current value before retargeting.
+          const current=p.value;
+          if(p.cancelAndHoldAtTime)p.cancelAndHoldAtTime(t);
+          else p.cancelScheduledValues(t);
+          p.setValueAtTime(current,t);
+          p.linearRampToValueAtTime(value,t+.02);
+        }
+      }
+      this.gainsInitialized=true;
+    }
     _save() { try {localStorage.setItem(KEY,JSON.stringify(this.settings));} catch (_) {} this._gains(); }
     setVolumes(values={}) { for(const k of ['music','sfx']) if(Number.isFinite(values[k])) this.settings[k]=clamp(values[k]); this._save(); this._updateHum(); }
     setMuted(value) { this.settings.muted=!!value; this._save(); if(this.settings.muted)this._stopHum();else this._updateHum(); }
     captureStream() { return this.destination ? this.destination.stream : null; }
-    snapshot() { const samples=new Float32Array(1024); if(this.analyser)this.analyser.getFloatTimeDomainData(samples); const energy=Math.sqrt(samples.reduce((s,v)=>s+v*v,0)/samples.length); return {energy,voiceLimit:this.voiceLimit,hum:{count:this.hum?1:0,x:this.hum?this.hum.x:null},duckGain:this.duck?this.duck.gain.value:1,recoveryBars:this.recoveryBars,bars:Math.floor(this.step/16),scheduledSteps:this.step,arrangement:{...this.arrangement},pendingArrangement:{...this.pendingArrangement},arrangementChanges:this.arrangementChanges.slice(),contextState:this.ctx?this.ctx.state:'uninitialized',settings:{...this.settings},voices:this.voices.length+(this.hum?1:0),droppedFx:this.droppedFx,counters:{...this.counters},gains:this.ctx?{music:this.music.gain.value,sfx:this.sfx.gain.value,master:this.master.gain.value}:null}; }
+    snapshot() { const samples=new Float32Array(1024); if(this.analyser)this.analyser.getFloatTimeDomainData(samples); const energy=Math.sqrt(samples.reduce((s,v)=>s+v*v,0)/samples.length); return {energy,voiceLimit:this.voiceLimit,hum:{count:this.hum?1:0,x:this.hum?this.hum.x:null},duckGain:this.duck?this.duck.gain.value:1,recoveryBars:this.recoveryBars,bars:Math.floor(this.step/16),scheduledSteps:this.step,arrangement:{...this.arrangement},pendingArrangement:{...this.pendingArrangement},arrangementChanges:this.arrangementChanges.slice(),contextState:this.ctx?this.ctx.state:'uninitialized',settings:{...this.settings},voices:this.voices.length+(this.hum?1:0),droppedFx:this.droppedFx,counters:{...this.counters},gains:this.ctx?{music:this.music.gain.value,sfx:this.sfx.gain.value,master:this.master.gain.value}:null,gainTargets:{music:this.settings.music,sfx:this.settings.sfx,master:this.settings.muted?0:.72}}; }
     async dispose() {this.lifecycle++;clearInterval(this.timer);this.timer=null;this.disposed=true;this.paused=true;this._stopHum();for(const v of [...this.voices])this._stopVoice(v);if(this.destination)this.destination.stream.getTracks().forEach(t=>t.stop());if(this.ctx && this.ctx.state!=='closed')await this.ctx.close();}
   }
   window.RiftAudio = RiftAudio;
