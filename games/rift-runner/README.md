@@ -28,6 +28,15 @@ Enemy vocabulary:
 - **Pink splitters:** release three fast fragments on death.
 - **Orange singularities:** pull the ship and bend nearby shots; destruction triggers a local chain explosion.
 
+## Adaptive audio
+`audio.js` synthesizes an original 132 BPM electro/breakbeat score with an A-minor-key chord progression. Bass and a sparse beat establish the groove; threat 2 adds percussion, threat 4 adds arpeggios, and weapon tier 3 adds a lead. Changes land on bar boundaries. A lost life strips the arrangement for two bars before rebuilding.
+
+Distinct effects cover evolving weapons, chord-matched geom chimes, stereo dash, splitter fracture, kills, upgrades, life loss, death and nova suction/impact. The nearest gravity well has a distance-sensitive stereo hum. Major impacts briefly duck the music.
+
+Open **AUDIO MIXER** below the arena for independent music/effects levels. Levels and M mute persist locally. Sound starts on the Start gesture; pause, hidden tabs and lost focus suspend audio. Sliders do not steer the ship. A 48-source budget, routine-event throttles, priority reservation, compression and conservative gain keep swarms bounded. No external music service or assets.
+
+`window.riftAudio.snapshot()` exposes actual context, scheduling, voice and signal-energy diagnostics. `captureStream()` returns the real post-master stereo mix for a MediaRecorder, not synthetic test audio. Browser-only automated verification is not a physical-device listening review.
+
 ## Visual architecture
 `game.js` owns gameplay, state and effect lifetimes. `renderer.js` is a pure scene consumer: elastic vector lattice, geometric silhouettes, ship afterimages, hot-core tracer fire, sparks, expanding shock rings and an animated title sculpture. One quarter-resolution bloom pass avoids expensive per-particle shadow blurs.
 
@@ -41,7 +50,7 @@ uv run pytest
 ARTIFACT_VIDEO_MS=10000 npm run artifacts:video -- rift-runner
 ```
 
-Focused tests: `npx playwright test tests/rift-runner.spec.mjs tests/rift-renderer.spec.mjs tests/rift-arcade.spec.mjs`.
+Focused tests: `KANBAN_MODE=fixture npx playwright test tests/rift-runner.spec.mjs tests/rift-renderer.spec.mjs tests/rift-arcade.spec.mjs tests/rift-audio.spec.mjs tests/rift-audio-integration.spec.mjs`.
 
 `window.__gameTest.snapshot()` exposes durable state. Deterministic probes test director progression, actual geom attraction/collection and weapon shots, enemy movement/splitting/gravity, life/bomb economics, pause, persistence and afterimage damage. Diagnostics are available in this local single-player demo; no competitive anti-cheat claim.
 

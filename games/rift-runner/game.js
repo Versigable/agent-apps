@@ -17,9 +17,9 @@
   try {
     best = Math.max(0, Number(localStorage.getItem("rift-runner-best")) || 0);
   } catch {}
-  let muted = false,
-    audio = null,
-    audioEvents = 0;
+  const audio = window.RiftAudio ? new window.RiftAudio() : null;
+  window.riftAudio = audio;
+  let muted = audio?.snapshot().settings.muted || false, audioEvents = 0;
   let state = "title",
     player,
     enemies = [],
@@ -156,7 +156,6 @@
     }
   }
   function start() {
-    initAudio();
     keys.clear();
     mouse.down = false;
     resetPlayer();
@@ -182,39 +181,33 @@
     state = "playing";
     overlay.hidden = true;
     beginWave();
+    updateAudio();
+    initAudio();
     sync();
   }
   function initAudio() {
-    try {
-      if (!audio)
-        audio = new (window.AudioContext || window.webkitAudioContext)();
-      if (audio.state === "suspended") audio.resume().catch(() => {});
-    } catch {
-      audio = null;
-    }
+    if (audio) Promise.resolve(audio.start()).catch(() => {});
   }
-  function sound(freq, duration = 0.08, type = "triangle", end = 80) {
-    if (muted || !audio) return;
-    try {
-      const o = audio.createOscillator(),
-        g = audio.createGain();
-      o.type = type;
-      o.frequency.setValueAtTime(freq, audio.currentTime);
-      o.frequency.exponentialRampToValueAtTime(
-        end,
-        audio.currentTime + duration,
-      );
-      g.gain.setValueAtTime(0.035, audio.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + duration);
-      o.connect(g);
-      g.connect(audio.destination);
-      o.start();
-      o.stop(audio.currentTime + duration);
-      audioEvents++;
-    } catch {}
+  function updateAudio() {
+    audio?.update({threat:wave,weaponTier,player,enemies,state});
+  }
+  function sound(name, x = player.x) {
+    if (!muted && audio?.fx(name,{x,tier:weaponTier})) audioEvents++;
+  }
+  function refreshAudioControls() {
+    const settings=audio?.snapshot().settings || {music:.5,sfx:.7,muted:false};
+    for(const name of ['music','sfx']) {
+      const input=document.querySelector('#'+name+'-volume');
+      if(input) input.value=settings[name];
+      const output=document.querySelector('#'+name+'-value');
+      if(output) output.textContent=Math.round(settings[name]*100)+'%';
+    }
+    $('#mute').textContent=muted?'M · SOUND OFF':'M · SOUND ON';
+    $('#mute').setAttribute('aria-label',muted?'Unmute audio':'Mute audio');
   }
   function toggleMute() {
     muted = !muted;
+    audio?.setMuted(muted);
     $("#mute").textContent = muted ? "M · SOUND OFF" : "M · SOUND ON";
     $("#mute").setAttribute(
       "aria-label",
@@ -225,6 +218,7 @@
   function pause() {
     if (state === "playing") {
       state = "paused";
+      audio?.pause();
       keys.clear();
       mouse.down = false;
       overlay.hidden = false;
@@ -235,6 +229,8 @@
       state = "playing";
       overlay.hidden = true;
       keys.clear();
+      updateAudio();
+      initAudio();
     }
     sync();
   }
@@ -261,13 +257,14 @@
     });
     shake = 12;
     burst(player.x, player.y, CORAL, 25);
-    sound(110, 0.2, "sawtooth", 35);
+    sound("death");
     if (!player.hp) {
       best = Math.max(best, score);
       try {
         localStorage.setItem("rift-runner-best", String(best));
       } catch {}
       state = "gameover";
+      setTimeout(()=>{if(state==='gameover') audio?.pause();},900);
       keys.clear();
       mouse.down = false;
       overlay.hidden = false;
@@ -328,7 +325,7 @@
       for (let i = 0; i < 3; i++)
         geoms.push({ x: e.x + (i - 1) * 8, y: e.y, life: 18 });
       if (geoms.length > 450) geoms.splice(0, geoms.length - 450);
-      sound(e.type === "boss" ? 65 : 160, 0.14, "sawtooth", 40);
+      sound(e.type === "blackhole" ? "gravity" : e.type === "splitter" ? "splitter" : "kill", e.x);
       if (dash) dashKills++;
       burst(e.x, e.y, CORAL, 22);
       shake = 4;
@@ -352,7 +349,7 @@
       color: CYAN,
     });
     burst(player.x, player.y, CYAN, 70);
-    sound(65, 0.6, "sawtooth", 600);
+    sound("bomb");
     sync();
   }
   function dash() {
@@ -370,7 +367,7 @@
     player.cooldown = 2.2;
     player.invuln = 0.3;
     dashes++;
-    sound(180, 0.25, "sawtooth", 650);
+    sound("dash");
     burst(player.x, player.y, CYAN);
   }
   function shoot() {
@@ -396,7 +393,7 @@
       });
     }
     shots++;
-    sound(640, 0.065, "triangle", 180);
+    sound("shot");
     burst(player.x + Math.cos(a) * 21, player.y + Math.sin(a) * 21, CYAN, 2);
   }
   function phaseHit(e, id, trail = false) {
@@ -437,9 +434,11 @@
         g.life = 0;
         collected++;
         multiplier++;
+        const previousTier = weaponTier;
         weaponTier =
           collected >= 60 ? 4 : collected >= 30 ? 3 : collected >= 10 ? 2 : 1;
-        sound(900, 0.035, "sine", 1300);
+        sound("geom", g.x);
+        if (weaponTier > previousTier) sound("upgrade");
       }
     }
     geoms = geoms.filter((g) => g.life > 0);
@@ -758,12 +757,13 @@
   function frame(now) {
     let dt = Math.min((now - last) / 1000, 0.033);
     last = now;
-    if (state === "playing") update(dt);
+    if (state === "playing") {update(dt);updateAudio();}
     draw(dt);
     requestAnimationFrame(frame);
   }
   $("#start").onclick = start;
   addEventListener("keydown", (e) => {
+    if(e.target instanceof HTMLInputElement) return;
     keys.add(e.key.toLowerCase());
     if (
       [" ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)
@@ -808,6 +808,11 @@
     mouse.down = false;
     if (state === "playing") pause();
   });
+  document.addEventListener("visibilitychange",()=>{if(document.hidden && state==='playing') pause();});
+  for(const name of ['music','sfx']) {
+    document.querySelector('#'+name+'-volume')?.addEventListener('input',e=>{audio?.setVolumes({[name]:Number(e.target.value)});refreshAudioControls();});
+  }
+  refreshAudioControls();
   window.__gameTest = {
     probeEffects() {
       enemies = [];
