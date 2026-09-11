@@ -95,16 +95,43 @@ async function main() {
     const previewPath = game.previewPath || game.playUrl.replace(/^\./, '/games');
     const previewUrl = `${baseUrl}${previewPath}`;
     await page.goto(previewUrl, { waitUntil: 'networkidle' });
-    const startButton = page.getByRole('button', { name: /start breach|open the greenhouse|start|play/i });
+    const startButton = gameId === 'snowdown'
+      ? page.getByRole('button', { name: /ride together|play co-op|start co-op/i })
+      : page.getByRole('button', { name: /start breach|open the greenhouse|start|play/i });
     if (await startButton.count()) await startButton.first().click();
-    await page.keyboard.down('KeyW');
-    await page.keyboard.down('KeyD');
-    for (let i = 0; i < Math.max(3, Math.floor(durationMs / 700)); i += 1) {
-      await page.keyboard.press('KeyF');
-      await page.waitForTimeout(500);
+    let gameplayEvidence = null;
+    if (gameId === 'snowdown') {
+      await page.waitForFunction(() => document.querySelector('#game-root')?.dataset.state === 'playing');
+      gameplayEvidence = { before: await page.evaluate(() => window.__snowdown.snapshot()) };
+      // Real two-player inputs: no forced progression or invulnerability.
+      await page.keyboard.down('KeyF');
+      await page.keyboard.down('KeyK');
+      const started = Date.now();
+      const routes = [['KeyW', 'ArrowUp'], ['KeyA', 'ArrowRight'], ['KeyS', 'ArrowDown'], ['KeyD', 'ArrowLeft']];
+      let leg = 0;
+      while (Date.now() - started < durationMs) {
+        const keys = routes[leg++ % routes.length];
+        for (const key of keys) await page.keyboard.down(key);
+        await page.keyboard.press(leg % 2 ? 'KeyG' : 'KeyL');
+        await page.waitForTimeout(Math.min(1100, Math.max(0, durationMs - (Date.now() - started))));
+        for (const key of keys) await page.keyboard.up(key);
+      }
+      await page.keyboard.up('KeyF');
+      await page.keyboard.up('KeyK');
+      gameplayEvidence.after = await page.evaluate(() => window.__snowdown.snapshot());
+      if (gameplayEvidence.after.shots <= gameplayEvidence.before.shots) {
+        throw new Error('Snowdown capture recorded no real snowball throws');
+      }
+    } else {
+      await page.keyboard.down('KeyW');
+      await page.keyboard.down('KeyD');
+      for (let i = 0; i < Math.max(3, Math.floor(durationMs / 700)); i += 1) {
+        await page.keyboard.press('KeyF');
+        await page.waitForTimeout(500);
+      }
+      await page.keyboard.up('KeyW');
+      await page.keyboard.up('KeyD');
     }
-    await page.keyboard.up('KeyW');
-    await page.keyboard.up('KeyD');
 
     const latestScreenshot = path.join(screenshotDir, `${gameId}-latest.png`);
     await page.screenshot({ path: latestScreenshot, fullPage: true });
@@ -127,6 +154,7 @@ async function main() {
       gameId,
       previewUrl,
       durationMs,
+      ...(gameplayEvidence ? { gameplayEvidence } : {}),
       screenshot: path.relative(repoRoot, latestScreenshot),
       video: path.relative(repoRoot, latestVideo),
       consoleErrors,
