@@ -1,4 +1,6 @@
-# Snowdown — polish release verification
+# Snowdown — polish release verification (historical)
+
+This records the earlier item-1 release, commit `076cc80`. For the charged-snowball and mini-boss release, see [MOONWALK-VERIFICATION.md](MOONWALK-VERIFICATION.md).
 
 ## Shipped scope
 

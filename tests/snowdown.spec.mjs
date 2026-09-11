@@ -24,11 +24,11 @@ test('snowdown boots a local 3D arena and both cowpokes can move, throw and dodg
   expect(active.dodges).toBe(2);
   expect(active.renderer).toBe('WebGLRenderer');
   expect(active.enemies).toBeGreaterThan(0);
-  await page.screenshot({ path: 'games/artifacts/test-results/smoke-screenshots/snowdown-smoke.png', timeout: 30000 });
+  await page.screenshot({ path: test.info().outputPath('snowdown-smoke.png'), timeout: 30000 });
   expect(errors).toEqual([]);
 });
 
-test('snowballs collide, outlaws retaliate, partners revive, cocoa heals and all three waves win', async ({ page }) => {
+test('snowballs collide, outlaws retaliate, partners revive, cocoa heals and three waves unlock the boss before victory', async ({ page }) => {
   test.setTimeout(90000);
   await page.goto('/games/snowdown/?test=1');
   await page.getByRole('button', { name: 'Ride together' }).click();
@@ -58,7 +58,11 @@ test('snowballs collide, outlaws retaliate, partners revive, cocoa heals and all
     for(let i=0;i<3;i++){t.clearWave();t.step(3.1);}
     return t.snapshot();
   });
-  expect(won.state).toBe('won');
+  expect(won.state).toBe('playing');
+  expect(won.boss.hp).toBeGreaterThan(0);
+  expect(won.wave).toBe(3);
+  await page.evaluate(()=>{window.__snowdown.clearWave();window.__snowdown.step(3.1);});
+  expect((await page.evaluate(()=>window.__snowdown.snapshot())).state).toBe('won');
   await expect(page.getByRole('heading', {name:'The West is thawed.'})).toBeVisible();
   await page.getByRole('button',{name:'Another snow day'}).click();
   const reset=await page.evaluate(()=>window.__snowdown.snapshot());

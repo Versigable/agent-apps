@@ -102,19 +102,30 @@ async function main() {
     let gameplayEvidence = null;
     if (gameId === 'snowdown') {
       await page.waitForFunction(() => document.querySelector('#game-root')?.dataset.state === 'playing');
-      gameplayEvidence = { before: await page.evaluate(() => window.__snowdown.snapshot()) };
+      gameplayEvidence = { before: await page.evaluate(() => window.__snowdown.snapshot()), milestones: [] };
       // Real two-player inputs: no forced progression or invulnerability.
       await page.keyboard.down('KeyF');
       await page.keyboard.down('KeyK');
       const started = Date.now();
-      const routes = [['KeyW', 'ArrowUp'], ['KeyA', 'ArrowRight'], ['KeyS', 'ArrowDown'], ['KeyD', 'ArrowLeft']];
-      let leg = 0;
+      const routes = [['KeyW', 'ArrowUp'], ['KeyD', 'ArrowRight'], ['KeyS', 'ArrowDown'], ['KeyA', 'ArrowLeft']];
+      let leg = 0, capturedBoss = false;
       while (Date.now() - started < durationMs) {
-        const keys = routes[leg++ % routes.length];
+        const keys = routes[leg % routes.length];
+        const chargeKey = leg % 3 === 0 ? (leg % 2 ? 'KeyJ' : 'KeyH') : null;
         for (const key of keys) await page.keyboard.down(key);
-        await page.keyboard.press(leg % 2 ? 'KeyG' : 'KeyL');
+        if (chargeKey) await page.keyboard.down(chargeKey);
+        if (leg % 3 === 1) { await page.keyboard.press('KeyG'); await page.keyboard.press('KeyL'); }
         await page.waitForTimeout(Math.min(1100, Math.max(0, durationMs - (Date.now() - started))));
+        if (chargeKey) await page.keyboard.up(chargeKey);
         for (const key of keys) await page.keyboard.up(key);
+        const sample = await page.evaluate(() => window.__snowdown.snapshot());
+        gameplayEvidence.milestones.push({ wallMs: Date.now() - started, ...sample });
+        if (sample.boss?.hp > 0 && !capturedBoss) {
+          await page.screenshot({ path: path.join(screenshotDir, 'snowdown-boss-latest.png'), timeout: 30000 });
+          capturedBoss = true;
+        }
+        if (sample.state === 'won' || sample.state === 'lost') break;
+        leg++;
       }
       await page.keyboard.up('KeyF');
       await page.keyboard.up('KeyK');
