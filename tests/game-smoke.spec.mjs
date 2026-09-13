@@ -45,6 +45,10 @@ test('agent game arcade loads manifest and exposes fps gauntlet', async ({ page 
 test('fps gauntlet starts, accepts controls, shoots drones, and updates hud', async ({ page }) => {
   test.setTimeout(120000);
   const errors = await collectConsoleErrors(page);
+  // Drive simulation time explicitly: slow WebGL/CI assertions must not let
+  // enemies kill the player or advance the short wave-clear banner offscreen.
+  await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-01-01T00:00:01Z'));
   await page.goto('/games/fps-gauntlet/');
   await expect(page.getByRole('heading', { name: 'Neon Breach' })).toBeVisible();
   await expect(page.locator('#game-canvas')).toBeVisible();
@@ -68,12 +72,15 @@ test('fps gauntlet starts, accepts controls, shoots drones, and updates hud', as
 
   await page.getByRole('button', { name: /start breach/i }).click();
   await expect(page.locator('#game-root')).toHaveAttribute('data-state', 'running');
+  // performance.now() starts at zero after navigation; clear the 145 ms
+  // firing cooldown before sending real keyboard input.
+  await page.clock.runFor(160);
 
   await page.keyboard.down('KeyW');
   await page.keyboard.down('KeyD');
   await page.keyboard.press('KeyF');
   await page.keyboard.press('Space');
-  await page.waitForTimeout(900);
+  await page.clock.runFor(900);
   await page.keyboard.up('KeyW');
   await page.keyboard.up('KeyD');
 

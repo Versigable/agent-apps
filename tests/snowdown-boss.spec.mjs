@@ -20,7 +20,7 @@ test('boss telegraphs before volleys and backward dash; real snowballs defeat it
  await boot(page);const initial=await page.evaluate(()=>{const t=window.__snowdown;for(let i=0;i<3;i++){t.clearWave();t.step(3);}return t.snapshot();});expect(initial.boss.hp).toBe(50);expect(initial.state).toBe('playing');
  const warning=await page.evaluate(()=>window.__snowdown.step(1));expect(warning.boss.phase).toBe('VOLLEY WARNING');expect(warning.boss.warning).toBe(true);expect(warning.volleys).toBe(0);
  const hud=await page.locator('#boss-hud').boundingBox(), notice=await page.locator('#announcement').boundingBox();expect(notice.y).toBeGreaterThan(hud.y+hud.height);
- await page.screenshot({path:'/tmp/snowdown-boss-verified.png'});
+ await page.screenshot({path:test.info().outputPath('snowdown-boss-verified.png')});
  const shot=await page.evaluate(()=>window.__snowdown.step(1));expect(shot.volleys).toBe(1);
  const dashed=await page.evaluate(()=>window.__snowdown.step(3.2));expect(dashed.bossDashes).toBe(1);
  expect(await page.evaluate(()=>typeof window.__snowdown.bossTarget)).toBe('function');

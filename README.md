@@ -1,6 +1,32 @@
 # agent-apps
 
-Monorepo for agent-developed applications, utilities, and browser-playable experiments.
+**Applications written by AI agents, merged only against evidence.**
+
+This is a working monorepo, not a demo. Agents implement features on branches; every change
+lands through a merge request that a human reviews against execution artifacts — pytest runs,
+Playwright browser smoke tests, screenshots, and recorded gameplay video — rather than against
+the agent's own claim that it worked.
+
+## How a change lands
+
+1. **Scope is written down first.** Work is specified as a plan before an agent starts, so
+   "done" is defined up front rather than negotiated afterwards (`docs/plans/`).
+2. **An agent implements on a branch** and opens a merge request.
+3. **Verification produces artifacts, not assertions.** `npm test` drives Playwright smoke
+   tests against a real browser, `npm run artifacts:video` records gameplay proof, and
+   `uv run pytest` covers the Python utilities.
+4. **CI re-runs the same suites** on every push (`.gitlab-ci.yml`), publishing
+   `playwright-report/` and `test-results/` as build artifacts.
+5. **A human reviews the diff and the evidence before merge.**
+6. **A persistent internal preview service** hosts the result so it can be exercised by hand
+   before it counts as finished.
+
+## Why it is built this way
+
+Agent-written code is cheap to produce and expensive to trust. The workflow above exists so
+that trust comes from reproducible evidence — a test run, a screenshot, a recording — instead
+of from a summary the agent wrote about its own work. The interesting engineering here is the
+verification surface, not the apps themselves.
 
 ## Current projects
 
@@ -63,7 +89,7 @@ npm run preview:health
 Internal preview URL:
 
 ```text
-http://100.104.27.125:4173/games/arcade/
+http://<preview-host>:4173/games/arcade/
 ```
 
 App preview dashboard URL after Traefik targets OpenClaw port `4175`:
