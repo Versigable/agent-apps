@@ -1,6 +1,33 @@
 import { test, expect } from '@playwright/test';
 
-const columnNames = ['triage', 'todo', 'ready', 'running', 'blocked', 'done'];
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { handleKanbanRequest } from '../scripts/kanban-bridge.mjs';
+
+const columnNames = ['triage', 'todo', 'scheduled', 'ready', 'running', 'review', 'blocked', 'done'];
+
+test('fixture adapter preserves review, scheduled and future statuses without losing cards', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'kanban-adapter-'));
+  try {
+    await mkdir(path.join(repoRoot, 'apps/kanban/fixtures'), { recursive: true });
+    const statuses = ['review', 'scheduled', 'future-status'];
+    await writeFile(path.join(repoRoot, 'apps/kanban/fixtures/default-board.json'), JSON.stringify({
+      columns: statuses.map((status) => ({ name: status, tasks: [{ id: status, title: status, status }] }))
+    }));
+    let result;
+    await handleKanbanRequest({ url: '/api/kanban/board', method: 'GET', headers: {} }, {
+      writeHead(code) { expect(code).toBe(200); }, end(body) { result = JSON.parse(body); }
+    }, { repoRoot });
+    expect(result.summary.total).toBe(statuses.length);
+    for (const status of statuses) {
+      expect(result.columns.find((column) => column.name === status)?.tasks[0]?.status).toBe(status);
+      expect(result.summary.by_status[status]).toBe(1);
+    }
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
 
 test('kanban operator app loads fixture board in read-only safe mode', async ({ page }) => {
   const consoleErrors = [];

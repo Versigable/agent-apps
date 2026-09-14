@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
-const BOARD_COLUMNS = ['triage', 'todo', 'ready', 'running', 'blocked', 'done'];
+const BOARD_COLUMNS = ['triage', 'todo', 'scheduled', 'ready', 'running', 'review', 'blocked', 'done'];
 const DEFAULT_FIXTURE_PATH = path.join('apps', 'kanban', 'fixtures', 'default-board.json');
 const DEFAULT_ROSTER_PATH = path.join('apps', 'kanban', 'operator-roster.json');
 const WRITE_AUTHOR = process.env.KANBAN_WRITE_AUTHOR || 'app-preview';
@@ -93,7 +93,7 @@ function resolveMode() {
 }
 
 function readOnlyMode() {
-  return parseBoolean(process.env.KANBAN_READONLY, true);
+  return resolveMode() !== 'live' || parseBoolean(process.env.KANBAN_READONLY, true);
 }
 
 function writesEnabled() {
@@ -117,7 +117,7 @@ function publicTask(task) {
     id: task.id,
     title: task.title || '(untitled)',
     body: task.body || '',
-    status: BOARD_COLUMNS.includes(task.status) ? task.status : 'todo',
+    status: task.status || 'unknown',
     assignee: task.assignee || null,
     tenant: task.tenant || null,
     priority: Number(task.priority || 0),
@@ -154,10 +154,10 @@ function buildSummary(columns) {
   let newestUpdatedAt = null;
 
   for (const column of columns) {
-    const status = BOARD_COLUMNS.includes(column.name) ? column.name : 'todo';
+    const status = column.name;
     for (const task of Array.isArray(column.tasks) ? column.tasks : []) {
       total += 1;
-      byStatus[status] += 1;
+      incrementCount(byStatus, status);
       if (!['done'].includes(status)) active += 1;
       if (task.assignee) incrementCount(byAssignee, task.assignee);
       else unassigned += 1;
@@ -208,9 +208,10 @@ function normalizeBoard(payload, board, mode) {
   const out = emptyBoard(board || payload.board || 'default', mode);
   const columns = Array.isArray(payload.columns) ? payload.columns : [];
   for (const column of columns) {
-    if (!BOARD_COLUMNS.includes(column.name)) continue;
-    const target = out.columns.find((item) => item.name === column.name);
-    target.tasks = Array.isArray(column.tasks) ? column.tasks.map(publicTask) : [];
+    const name = column.name || 'unknown';
+    let target = out.columns.find((item) => item.name === name);
+    if (!target) out.columns.push(target = { name, tasks: [] });
+    target.tasks.push(...(Array.isArray(column.tasks) ? column.tasks.map((task) => publicTask({ ...task, status: name })) : []));
   }
   out.tenants = Array.isArray(payload.tenants) ? payload.tenants.filter(Boolean) : [];
   out.assignees = Array.isArray(payload.assignees) ? payload.assignees.filter(Boolean) : [];
@@ -291,7 +292,8 @@ function mergeNames(...groups) {
 
 async function fixtureBoard(repoRoot, board) {
   const [payload, roster] = await Promise.all([readFixturePayload(repoRoot), readOperatorRoster(repoRoot)]);
-  const normalized = normalizeBoard(payload, board, 'fixture');
+  const source = board === (payload.board || 'default') ? payload : (payload.board_data?.[board] || { columns: [] });
+  const normalized = normalizeBoard(source, board, 'fixture');
   normalized.tenants = mergeNames(normalized.tenants, roster.tenants);
   normalized.assignees = mergeNames(normalized.assignees, rosterAssigneeItems(roster).map((item) => item.name));
   normalized.workspaces = mergeNames(roster.workspaces);
@@ -330,7 +332,7 @@ async function fixtureAssignees(repoRoot) {
 
 function sanitizeBoard(item, currentBoard = 'default') {
   const slug = item.slug || item.board || 'default';
-  const counts = item.counts && typeof item.counts === 'object' ? Object.fromEntries(Object.entries(item.counts).filter(([key]) => BOARD_COLUMNS.includes(key) || key === 'archived')) : {};
+  const counts = item.counts && typeof item.counts === 'object' ? { ...item.counts } : {};
   return {
     slug,
     name: item.name || slug,
@@ -356,8 +358,8 @@ async function liveBoards(currentBoard) {
   };
 }
 
-async function liveAssignees(repoRoot) {
-  const [stdout, roster] = await Promise.all([runHermesRaw(['kanban', 'assignees', '--json']), readOperatorRoster(repoRoot)]);
+async function liveAssignees(repoRoot, board) {
+  const [stdout, roster] = await Promise.all([runHermesKanban(board, ['assignees', '--json']), readOperatorRoster(repoRoot)]);
   const assignees = JSON.parse(stdout || '[]');
   const liveItems = (Array.isArray(assignees) ? assignees : []).map((item) => ({
     name: item.name,
@@ -373,22 +375,12 @@ async function liveAssignees(repoRoot) {
 
 async function loadBoards(repoRoot, currentBoard) {
   if (resolveMode() === 'fixture') return fixtureBoards(repoRoot, currentBoard);
-  try {
-    return await liveBoards(currentBoard);
-  } catch (error) {
-    if ((process.env.KANBAN_LIVE_FALLBACK || 'fixture') === 'none') throw error;
-    return fixtureBoards(repoRoot, currentBoard);
-  }
+  return liveBoards(currentBoard);
 }
 
-async function loadAssignees(repoRoot) {
+async function loadAssignees(repoRoot, board) {
   if (resolveMode() === 'fixture') return fixtureAssignees(repoRoot);
-  try {
-    return await liveAssignees(repoRoot);
-  } catch (error) {
-    if ((process.env.KANBAN_LIVE_FALLBACK || 'fixture') === 'none') throw error;
-    return fixtureAssignees(repoRoot);
-  }
+  return liveAssignees(repoRoot, board);
 }
 
 async function fixtureExecutionStatus(repoRoot, board) {
@@ -436,12 +428,7 @@ async function liveExecutionStatus(repoRoot, board) {
 
 async function loadExecutionStatus(repoRoot, board) {
   if (resolveMode() === 'fixture') return fixtureExecutionStatus(repoRoot, board);
-  try {
-    return await liveExecutionStatus(repoRoot, board);
-  } catch (error) {
-    if ((process.env.KANBAN_LIVE_FALLBACK || 'fixture') === 'none') throw error;
-    return fixtureExecutionStatus(repoRoot, board);
-  }
+  return liveExecutionStatus(repoRoot, board);
 }
 
 function boundedInteger(value, min, max, field, defaultValue) {
@@ -483,7 +470,7 @@ async function claimExecutionTask(board, taskId, payload) {
 
 async function fixtureDetail(repoRoot, board, taskId) {
   const raw = await readFixturePayload(repoRoot);
-  const boardPayload = normalizeBoard(raw, board, 'fixture');
+  const boardPayload = await fixtureBoard(repoRoot, board);
   const task = findTask(boardPayload, taskId);
   if (!task) return null;
   const details = raw.task_details?.[taskId] || {};
@@ -521,14 +508,16 @@ async function runHermesKanban(board, args, options = {}) {
 }
 
 async function liveBoard(repoRoot, board) {
-  const [stdout, roster] = await Promise.all([runHermesKanban(board, ['list', '--json']), readOperatorRoster(repoRoot)]);
+  const [result, roster] = await Promise.all([execFileAsync(process.env.KANBAN_PYTHON || 'python3', [path.join(repoRoot, 'scripts/kanban-readonly.py'), board], { timeout: 10_000, maxBuffer: 8 * 1024 * 1024, env: { ...process.env } }), readOperatorRoster(repoRoot)]);
+  const stdout = result.stdout;
   const tasks = JSON.parse(stdout || '[]');
   const payload = emptyBoard(board, 'live');
   const tenants = new Set(roster.tenants || []);
   const assignees = new Set(rosterAssigneeItems(roster).map((item) => item.name));
   for (const rawTask of Array.isArray(tasks) ? tasks : []) {
     const task = publicTask(rawTask);
-    const column = payload.columns.find((item) => item.name === task.status) || payload.columns.find((item) => item.name === 'todo');
+    let column = payload.columns.find((item) => item.name === task.status);
+    if (!column) payload.columns.push(column = { name: task.status, tasks: [] });
     column.tasks.push(task);
     if (task.tenant) tenants.add(task.tenant);
     if (task.assignee) assignees.add(task.assignee);
@@ -542,12 +531,7 @@ async function liveBoard(repoRoot, board) {
 async function loadBoard(repoRoot, board) {
   const mode = resolveMode();
   if (mode === 'fixture') return fixtureBoard(repoRoot, board);
-  try {
-    return await liveBoard(repoRoot, board);
-  } catch (error) {
-    if ((process.env.KANBAN_LIVE_FALLBACK || 'fixture') === 'none') throw error;
-    return fixtureBoard(repoRoot, board);
-  }
+  return liveBoard(repoRoot, board);
 }
 
 function sendJson(res, status, payload) {
@@ -734,15 +718,15 @@ async function loadTaskDetail(repoRoot, board, taskId) {
   try {
     const stdout = await runHermesKanban(board, ['show', taskId, '--json']);
     const parsed = JSON.parse(stdout || '{}');
-    const task = publicTask(parsed.task || parsed);
+    const task = publicTask({ ...(parsed.task || parsed), latest_summary: parsed.latest_summary || parsed.task?.latest_summary });
     return {
       board,
       mode: 'live',
       readOnly: readOnlyMode(),
       writesEnabled: writesEnabled(),
       task,
-      comments: parsed.comments || parsed.task?.comments || [],
-      events: parsed.events || parsed.task?.events || [],
+      comments: (parsed.comments || parsed.task?.comments || []).map((item) => ({ ...item, text: item.body ?? item.text })),
+      events: (parsed.events || parsed.task?.events || []).map((item) => ({ ...item, event: item.kind || item.event || item.type, summary: item.summary || item.message || (item.payload ? JSON.stringify(item.payload) : '') })),
       dependencies: parsed.dependencies || parsed.links || { parents: parsed.parents || [], children: parsed.children || [] },
       runs: parsed.runs || [],
       log: parsed.log || null,
@@ -750,8 +734,7 @@ async function loadTaskDetail(repoRoot, board, taskId) {
       diagnostics: parsed.diagnostics || task.diagnostics || []
     };
   } catch (error) {
-    if ((process.env.KANBAN_LIVE_FALLBACK || 'fixture') === 'none') throw error;
-    return fixtureDetail(repoRoot, board, taskId);
+    throw error;
   }
 }
 
@@ -830,7 +813,7 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
     }
 
     if (pathName === '/api/kanban/assignees' && req.method === 'GET') {
-      return sendJson(res, 200, await loadAssignees(repoRoot));
+      return sendJson(res, 200, await loadAssignees(repoRoot, board));
     }
 
     if (pathName === '/api/kanban/execution/status' && req.method === 'GET') {

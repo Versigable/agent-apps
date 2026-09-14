@@ -158,22 +158,22 @@ test('preview surface mode separates app-preview from game-preview routes', asyn
   });
 });
 
-test('kanban write-enabled mode exposes triage creation UI and keeps fixture writes non-mutating', async ({ page }) => {
+test('kanban fixture mode honestly disables writes despite the operator flag', async ({ page }) => {
   await withPreviewSurface('apps', 4197, async (baseUrl) => {
     const health = await (await fetch(`${baseUrl}/api/kanban/health`)).json();
-    expect(health).toMatchObject({ readOnly: false, writesEnabled: true });
+    expect(health).toMatchObject({ readOnly: true, writesEnabled: false });
 
     const createAttempt = await fetch(`${baseUrl}/api/kanban/tasks`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'Fixture write should not persist', body: 'test body', priority: 3 })
     });
-    expect(createAttempt.status).toBe(409);
-    await expect(createAttempt.json()).resolves.toMatchObject({ error: 'kanban writes require live mode' });
+    expect(createAttempt.status).toBe(423);
+    await expect(createAttempt.json()).resolves.toMatchObject({ error: 'kanban bridge is read-only' });
 
     await page.goto(`${baseUrl}/apps/kanban/`);
-    await expect(page.getByTestId('safety-banner')).toContainText(/writes enabled/i);
-    await expect(page.getByRole('button', { name: /create triage card/i })).toBeEnabled();
+    await expect(page.getByTestId('safety-banner')).toContainText(/writes are disabled/i);
+    await expect(page.getByRole('button', { name: /create triage card/i })).toBeDisabled();
     await expect(page.getByLabel(/title/i)).toBeVisible();
   }, { KANBAN_READONLY: 'false' });
 });

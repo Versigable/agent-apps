@@ -27,6 +27,7 @@ button {
 }
 
 .shell {
+  overflow-wrap: anywhere;
   width: min(1600px, 100%);
   margin: 0 auto;
   padding: 32px;
@@ -51,7 +52,7 @@ button {
 
 h1 {
   margin: 0;
-  font-size: clamp(2.3rem, 4vw, 4.8rem);
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
   line-height: 0.95;
 }
 
@@ -80,7 +81,7 @@ h1 {
   padding: 14px 16px;
   border-radius: 16px;
   color: var(--accent);
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .safety-banner {
@@ -111,6 +112,8 @@ h1 {
 }
 
 .inline-form {
+  flex-wrap: wrap;
+  min-width: 0;
   display: flex;
   gap: 12px;
   align-items: end;
@@ -247,6 +250,7 @@ h1 {
 
 .create-card label,
 .field {
+  min-width: 0;
   display: grid;
   gap: 6px;
   color: var(--muted);
@@ -279,14 +283,14 @@ h1 {
 
 .board {
   display: grid;
-  grid-template-columns: repeat(6, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 14px;
   overflow-x: auto;
   padding-bottom: 12px;
 }
 
 .column {
-  min-height: 420px;
+  min-height: 180px;
   border-radius: 22px;
   padding: 14px;
 }
@@ -507,6 +511,7 @@ h1 {
   .execution-panel,
   .inline-form,
   .drawer-form.compact {
+    grid-template-columns: minmax(0, 1fr);
     flex-direction: column;
     align-items: stretch;
   }
@@ -516,6 +521,6 @@ h1 {
   }
 
   .board {
-    grid-template-columns: repeat(6, 80vw);
+    grid-template-columns: minmax(0, 1fr);
   }
 }
