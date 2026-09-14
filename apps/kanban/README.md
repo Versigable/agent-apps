@@ -57,11 +57,11 @@ The bridge lives at `/api/kanban/*` and must stay constrained. Do not expose the
 
 ## Read-side boundary
 
-Board task listings and execution summary counts use `scripts/kanban-readonly.py`: a stdlib SQLite snapshot opened with `mode=ro` and `query_only`, without invoking `kanban list`, initializing/migrating the schema, or calling `recompute_ready`. Listings retain non-archived statuses and enrich cards with comment counts, dependency counts, and the latest nonempty run summary. The reader honors `HERMES_KANBAN_DB`, `HERMES_KANBAN_HOME`, and the shared root derived from `HERMES_HOME`.
+Board task listings use `scripts/kanban-readonly.py` (execution summary counts try CLI `stats` first and use this reader as a fallback): a stdlib SQLite snapshot opened with `mode=ro` and `query_only`, without invoking `kanban list`, initializing/migrating the schema, or calling `recompute_ready`. Listings retain non-archived statuses and enrich cards with comment counts, dependency counts, and the latest nonempty run summary. The reader honors `HERMES_KANBAN_DB`, `HERMES_KANBAN_HOME`, and the shared root derived from `HERMES_HOME`.
 
 **Schema-init caveat:** other CLI-backed reads (such as board discovery and task details) still use Hermes CLI commands, which may initialize or migrate their schema. This is not a guarantee that every GET is filesystem-write-free. The bounded guarantee is no implicit task-readiness promotion through board listing/summary reads; intentional operator writes remain available. Missing databases, incompatible schemas, and live CLI failures surface as errors, never silently substitute fixture cards.
 
-CI stays fixture-mode and does not touch the live Hermes DB. Fixture mode advertises read-only/write-disabled and execution-disabled capabilities regardless of operator flags; write attempts return `409`. Browser write-flow tests use intercepted responses, and bridge tests use temporary databases/mock CLI executables.
+CI stays fixture-mode and does not touch the live Hermes DB. Fixture mode advertises read-only/write-disabled and execution-disabled capabilities regardless of operator flags; write attempts return `423`. Browser write-flow tests use intercepted responses, and bridge tests use temporary databases/mock CLI executables.
 
 ## Focused verification
 
