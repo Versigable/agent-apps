@@ -1,3 +1,21 @@
+/* Game Dev stays a compact lens; no separate board/status model. */
+.view-switch { display: flex; gap: 8px; margin: 0 0 16px; }
+.view-switch a { padding: 9px 18px; border: 1px solid var(--border); border-radius: 10px; color: var(--muted); text-decoration: none; }
+.view-switch a[aria-current="page"] { color: var(--text); background: var(--panel-2); border-color: var(--accent); }
+.game-dev-panel { padding: 18px; margin-bottom: 18px; background: var(--panel); border: 1px solid var(--border); border-radius: 16px; min-width: 0; }
+.game-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; min-width: 0; max-width: 100%; }
+.game-filters label { display: flex; flex: 1 1 180px; min-width: 0; flex-direction: column; gap: 6px; color: var(--muted); }
+.game-filters input, .game-filters select { width: 100%; min-width: 0; }
+#game-task-fields { flex: 1 0 100%; width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+#game-task-fields legend { color: var(--accent); }
+#game-details h2 { margin: 12px 0 6px; }
+#game-details p, #game-details li { color: var(--muted); }
+#game-details pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; padding: 12px; background: var(--bg); border-radius: 8px; }
+.game-links { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+.game-links a, .game-meta { color: var(--accent); }
+.game-links span { color: var(--muted); font-size: .9rem; }
+[hidden] { display: none !important; }
+
 :root {
   color-scheme: dark;
   --bg: #080b12;

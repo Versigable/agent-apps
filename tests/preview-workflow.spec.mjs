@@ -119,7 +119,7 @@ test('app preview dashboard renders registered operator apps', async ({ page }) 
   const card = page.getByTestId('app-card-kanban');
   await expect(card.getByRole('link', { name: /open hermes kanban board/i })).toHaveAttribute('href', './kanban/');
   await expect(card.getByRole('link', { name: /health check for hermes kanban board/i })).toHaveAttribute('href', '/api/kanban/health');
-  await expect(card.getByText('Read-only by default')).toBeVisible();
+  await expect(card.getByText('Approved operator writes are enabled on protected app-preview; other deployments may be read-only according to bridge capabilities', { exact: true })).toBeVisible();
   await expect(card.getByText('Dispatch/claim require explicit confirmation')).toBeVisible();
 });
 

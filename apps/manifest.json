@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-05-06",
+  "updatedAt": "2026-09-14",
   "surface": {
     "name": "agent-app-preview",
     "title": "Agent App Dock",
@@ -27,22 +27,53 @@
       "dataPath": "/api/kanban/board?board=default",
       "testCommand": "npx playwright test tests/kanban-board.spec.mjs --reporter=list",
       "safetyPosture": [
-        "Read-only by default",
+        "Approved operator writes are enabled on protected app-preview; other deployments may be read-only according to bridge capabilities",
         "Dispatch/claim require explicit confirmation",
         "No board-groomer cron",
         "No automatic ready promotion",
         "No direct Hermes dashboard plugin exposure"
       ],
       "operatorChecklist": [
-        "Open the board and confirm the banner says live/read-only.",
-        "Verify six columns render: triage, todo, ready, running, blocked, done.",
+        "Open the board and confirm the live or fixture indicator and reported write capabilities; production errors must not substitute demo cards.",
+        "Verify backend statuses render, including triage, todo, ready, running, blocked, review, scheduled, done, and any unknown statuses returned by the backend.",
+        "Use approved assignment and task-management controls when writes are enabled.",
         "Confirm execution controls are separated into the high-friction panel and ready promotion remains manual.",
         "Use the app-preview surface, not game-preview, for operator use."
       ],
       "nextIdeas": [
         "Add execution event streaming and worker process visibility.",
         "Add enrichment-only triage helpers: labels, summaries, dedupe hints, missing-field hints.",
-        "Add an operator app registry as more app-preview tools arrive."
+        "Extend the operator app registry as more app-preview tools arrive."
+      ]
+    },
+    {
+      "id": "game-dev",
+      "title": "Game Dev",
+      "type": "operator-workflow",
+      "status": "operator-view",
+      "agent": "Merquery",
+      "model": "gpt-6-astra",
+      "summary": "A game-development view of Hermes Kanban using the same backend and task store, with game, milestone, and discipline metadata and a manifest-derived game catalog.",
+      "launchUrl": "/apps/kanban/?view=game-dev",
+      "previewPath": "/apps/kanban/?view=game-dev",
+      "previewUrl": "https://app-preview.ninjaprivacy.org/apps/kanban/?view=game-dev",
+      "healthPath": "/api/kanban/health",
+      "dataPath": "/api/kanban/board?board=default",
+      "testCommand": "CI=true KANBAN_MODE=fixture PLAYWRIGHT_PREVIEW_PORT=4315 npx playwright test tests/game-dev-discovery.spec.mjs --workers=1 --output=output/tmp/game-dev-discovery-tests --reporter=list",
+      "safetyPosture": [
+        "A view of the existing Kanban store: no separate board and no new statuses",
+        "Approved operator writes follow the same bridge capabilities and protected app-preview access as Kanban",
+        "Dispatch/claim remain in the separate high-friction confirmation panel; no automatic ready promotion",
+        "Game metadata does not guarantee task/build-linked verification or verified playable builds"
+      ],
+      "operatorChecklist": [
+        "Open Game Dev from the App Dock on app-preview, not game-preview.",
+        "Use the manifest-derived catalog from GET /api/kanban/games to identify a game.",
+        "Organize existing tasks with game_dev metadata: game_id, milestone, and discipline; the task store and statuses are unchanged.",
+        "Check bridge write capabilities before managing tasks; game previews run separately on game-preview."
+      ],
+      "nextIdeas": [
+        "Consider explicit task/build-linked verification as a separately scoped follow-up; it is not guaranteed by this view."
       ]
     }
   ]

@@ -1,3 +1,4 @@
+import { createGameDev } from './game-dev.js';
 const boardEl = document.querySelector('#board');
 const statusEl = document.querySelector('[data-testid="bridge-status"]');
 const safetyEl = document.querySelector('[data-testid="safety-banner"]');
@@ -40,6 +41,7 @@ let lastRefreshDate = null;
 let activeDrawerTaskId = null;
 let refreshGeneration = 0;
 let drawerGeneration = 0;
+const gameDev = createGameDev({ onViewChange: () => refreshBoard(), onFilterChange: () => { if (currentBoard) renderFilteredBoard(); updateCreateFormState(); } });
 
 function text(value, fallback = '—') {
   if (value === undefined || value === null || value === '') return fallback;
@@ -112,6 +114,7 @@ async function postJson(url, payload) {
 }
 
 function taskMatchesFilters(task) {
+  if (!gameDev.matches(task)) return false;
   const query = filterSearch.value.trim().toLowerCase();
   const assignee = filterAssignee.value;
   const tenant = filterTenant.value;
@@ -178,6 +181,12 @@ function renderTaskButton(task, taskBoard) {
   meta.className = 'task-meta';
   meta.textContent = taskMeta(task).join(' · ');
   button.append(meta);
+  if (task.game_dev) {
+    const gameMeta = document.createElement('div');
+    gameMeta.className = 'task-meta game-meta';
+    gameMeta.textContent = gameDev.label(task.game_dev);
+    button.append(gameMeta);
+  }
 
   if (task.latest_summary) {
     const summary = document.createElement('p');
@@ -225,10 +234,10 @@ function renderFilteredBoard() {
   const visible = columns.reduce((total, column) => total + column.tasks.length, 0);
   const total = currentBoard?.summary?.total ?? allTasks().length;
   filterCountEl.textContent = `${visible} of ${total} cards`;
-  if (!visible && total > 0) {
+  if (!visible && (total > 0 || gameDev.active)) {
     const empty = document.createElement('p');
     empty.className = 'empty no-match';
-    empty.textContent = 'No cards match current filters.';
+    empty.textContent = gameDev.active ? 'No game tasks match this selection. Create a game task below, or adjust filters. Existing General cards are unchanged.' : 'No cards match current filters.';
     boardEl.replaceChildren(empty);
     return;
   }
@@ -262,6 +271,12 @@ function formField(label, name, options = {}) {
 function updateCreateFormState() {
   const enabled = writesEnabled();
   for (const field of createForm.elements) field.disabled = !enabled;
+  const gameFields = document.querySelector('#game-task-fields');
+  gameFields.hidden = !gameDev.active;
+  gameFields.disabled = !enabled || !gameDev.active || !gameDev.selected();
+  const submit = createForm.querySelector('button[type=submit]');
+  submit.textContent = gameDev.active ? 'Create game task' : 'Create triage card';
+  submit.disabled = !enabled || (gameDev.active && !gameDev.selected());
   for (const field of createBoardForm.elements) field.disabled = !enabled;
   setMessage(createStatus, enabled ? 'Writes enabled: create triage or direct todo cards with workspace, parents, runtime, skills, and idempotency metadata.' : 'Read-only mode: creation is disabled.');
   updateExecutionFormState();
@@ -332,6 +347,7 @@ function splitList(value) {
 async function handleCreate(event) {
   event.preventDefault();
   const view = captureView();
+  const selectionIsCurrent = gameDev.captureSelection();
   const form = new FormData(createForm);
   const payload = {
     title: form.get('title'),
@@ -346,10 +362,21 @@ async function handleCreate(event) {
     idempotency_key: form.get('idempotency_key'),
     triage: form.get('triage') === 'on'
   };
+  if (!writesEnabled()) return;
+  if (gameDev.active) {
+    const game = gameDev.selected();
+    if (!game) { setMessage(createStatus, 'Select an available game before creating a game task.', true); return; }
+    const milestone = String(form.get('game_milestone') || '');
+    if (!milestone.trim() || milestone.length > 120 || /[\x00-\x1f`]/.test(milestone)) {
+      setMessage(createStatus, 'Game task milestone must be 1-120 characters without controls or backticks.', true);
+      return;
+    }
+    payload.game_dev = { game_id: game.id, milestone: milestone.trim(), discipline: form.get('game_discipline') };
+  }
   try {
     setMessage(createStatus, `Creating card on ${activeBoard}…`);
     await postJson(`/api/kanban/tasks?${boardParam(view.board)}`, payload);
-    if (!view.isCurrent()) return;
+    if (!view.isCurrent() || !selectionIsCurrent()) return;
     createForm.reset();
     createForm.elements.priority.value = '0';
     createForm.elements.workspace.value = 'scratch';
@@ -357,7 +384,7 @@ async function handleCreate(event) {
     setMessage(createStatus, 'Card created. Refreshing board…');
     await refreshBoard();
   } catch (error) {
-    if (!view.isCurrent()) return;
+    if (!view.isCurrent() || !selectionIsCurrent()) return;
     setMessage(createStatus, error.message, true);
   }
 }
@@ -829,6 +856,7 @@ function renderBoard(board) {
 
 async function refreshBoard() {
   const generation = ++refreshGeneration;
+  gameDev.load();
   const selectedBoard = activeBoard;
   const query = boardParam(selectedBoard);
   boardEl.replaceChildren(preBlock('Loading board…'));
@@ -900,6 +928,7 @@ const resetFilters = document.createElement('button');
 resetFilters.type = 'button';
 resetFilters.textContent = 'Reset filters';
 resetFilters.addEventListener('click', () => {
+  gameDev.reset();
   for (const control of [filterSearch, filterAssignee, filterTenant, filterStatus]) control.value = '';
   renderFilteredBoard();
 });
@@ -908,4 +937,18 @@ for (const control of [filterSearch, filterAssignee, filterTenant, filterStatus]
   control.addEventListener('input', renderFilteredBoard);
   control.addEventListener('change', renderFilteredBoard);
 }
+document.querySelector('#apply-game-template').addEventListener('click', () => {
+  const templates = {
+    feature: 'Define the player action and expected outcome.\n- [ ] Implement the action and visible feedback.\n- [ ] Cover success, failure, and restart paths with a regression test.\n- [ ] Record the build tested and manual play observations.',
+    bug: 'Reproduction: [steps, build, device]. Expected: [behavior]. Actual: [behavior].\n- [ ] Add a failing regression test for the reproduction.\n- [ ] Fix the root cause and run the regression test.\n- [ ] Replay the steps and record actual results.',
+    polish: 'Target interaction: [screen/action and desired feedback].\n- [ ] Capture before/after evidence at desktop and mobile sizes.\n- [ ] Verify feedback remains readable without blocking controls.\n- [ ] Confirm keyboard/touch and restart still work.',
+    performance: 'Scenario and budget: [device, workload, target frame time].\n- [ ] Measure and record a baseline using a repeatable scenario.\n- [ ] Optimize the measured bottleneck.\n- [ ] Repeat measurements and report before/after values and visual regressions.',
+    playtest: 'Build and session: [URL, device, controls, duration].\n- [ ] Play the core loop, failure, and restart paths.\n- [ ] Record observations and reproducible bugs, with evidence links.\n- [ ] Record explicit human feedback; review status alone is not approval.'
+  };
+  const body = createForm.elements.body;
+  const addition = `Acceptance criteria\n${templates[document.querySelector('#game-template').value]}`;
+  const next = `${body.value}${body.value ? '\n\n' : ''}${addition}`;
+  if (next.length > body.maxLength) { setMessage(createStatus, 'Template would exceed body limit; shorten the draft first.', true); return; }
+  body.value = next;
+});
 main();

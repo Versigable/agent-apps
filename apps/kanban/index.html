@@ -17,6 +17,21 @@
         <div class="status-card" data-testid="bridge-status">Loading bridge…</div>
       </header>
 
+      <nav class="view-switch" aria-label="Kanban view">
+        <a href="?view=general" data-kanban-view="general">General</a>
+        <a href="?view=game-dev" data-kanban-view="game-dev">Game Dev</a>
+      </nav>
+      <section id="game-dev-panel" class="game-dev-panel" aria-label="Game development" hidden>
+        <div class="game-filters">
+          <label>Game <select id="game-selector" aria-label="Game"></select></label>
+          <label>Milestone filter <input id="game-milestone-filter" placeholder="Exact milestone; blank for all" /></label>
+          <label>Discipline filter <select id="game-discipline-filter"><option value="">All disciplines</option><option>gameplay</option><option>art</option><option>audio</option><option>performance</option><option>qa</option><option>design</option></select></label>
+        </div>
+        <p id="game-catalog-status" role="status"></p>
+        <div id="game-details"></div>
+        <p class="toolbar-note">Hermes statuses are unchanged. Review is not human playtest approval. No cards are seeded or moved automatically.</p>
+      </section>
+
       <section class="safety-banner" data-testid="safety-banner">
         <strong>Loading safety posture.</strong>
         Checking bridge write mode…
@@ -88,6 +103,14 @@
       <section id="board" class="board" aria-live="polite"></section>
 
       <form id="create-task-form" class="toolbar create-card" aria-label="Create triage card">
+        <fieldset id="game-task-fields" class="game-filters" hidden disabled>
+          <legend>New game task — uses the selected game above</legend>
+          <label>Task milestone <input name="game_milestone" maxlength="120" placeholder="MVP / next release" /></label>
+          <label>Task discipline <select name="game_discipline" aria-label="Task discipline"><option>gameplay</option><option>art</option><option>audio</option><option>performance</option><option>qa</option><option>design</option></select></label>
+          <label>Task template <select id="game-template" aria-label="Task template"><option>feature</option><option>bug</option><option>polish</option><option>performance</option><option>playtest</option></select></label>
+          <button id="apply-game-template" type="button">Append template</button>
+          <span class="toolbar-note">Templates append acceptance criteria only when clicked; your draft is preserved.</span>
+        </fieldset>
         <label>
           <span>Title</span>
           <input name="title" required maxlength="180" placeholder="Task title" />

@@ -8,6 +8,24 @@ Web app for viewing and operating the local Hermes Kanban board through the `age
 /apps/kanban/
 ```
 
+## Game Dev view
+
+Deep link: `/apps/kanban/?view=game-dev` (add `&board=<existing-board-slug>` to target another board). The visible General / Game Dev links retain the selected board. General includes all original cards (including game tasks), subject only to its ordinary filters.
+
+Game Dev reads `/api/kanban/games`, displays the selected game's Play build, available screenshot/video references, test command, and manual checklist. Missing media is explicitly unavailable; links and commands are not evidence of passing tests. Catalog failure disables game creation, with Refresh board as retry. Board and catalog generations discard stale replies when switching boards/views.
+
+Game cards are filtered using `game_dev.game_id`, exact milestone, and discipline. Reset filters clears milestone/discipline and ordinary filters. Card clicks reuse the existing assignment/manage drawer and execution safeguards. Hermes statuses remain authoritative: `review` is not human playtest approval. There is no automatic card creation, movement, or migration.
+
+In Game Dev, **Create game task** intentionally adds `{game_id, milestone, discipline}` to the existing create payload, using the selected catalog game. In General the optional metadata is omitted. Feature, bug, polish, performance, and playtest templates append actionable acceptance criteria only when **Append template** is clicked; changing template selection never edits a draft. Body length limits are checked before appending.
+
+Focused UI verification (fixture server and mocked write responses, no live writes):
+
+```sh
+CI=true KANBAN_MODE=fixture PLAYWRIGHT_PREVIEW_PORT=4313 npx playwright test \
+  tests/kanban-game-dev.spec.mjs tests/kanban-refresh.spec.mjs tests/kanban-board.spec.mjs \
+  --workers=2 --output=/tmp/game-dev-ui-tests --reporter=list
+```
+
 ## Write posture
 
 The persistent app-preview service is approved for operator writes and runs with:

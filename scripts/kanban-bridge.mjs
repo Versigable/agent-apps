@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
+import { loadGames, parseGameDev, encodeGameDev, validateGameDev } from './kanban-games.mjs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -117,6 +118,7 @@ function publicTask(task) {
     id: task.id,
     title: task.title || '(untitled)',
     body: task.body || '',
+    game_dev: parseGameDev(task.body),
     status: task.status || 'unknown',
     assignee: task.assignee || null,
     tenant: task.tenant || null,
@@ -572,9 +574,22 @@ function parseCreatedTask(stdout) {
   }
 }
 
-async function createTriageTask(board, payload) {
+async function createTriageTask(board, payload, repoRoot) {
   const title = cleanText(payload.title, 180, 'title');
-  const body = optionalText(payload.body, 8000, 'body') || '';
+  let body = optionalText(payload.body, 8000, 'body') || '';
+  if (body.includes('```game-dev')) {
+    const error = new Error('body must not contain reserved game-dev metadata; use game_dev'); error.statusCode = 400; throw error;
+  }
+  if (Object.hasOwn(payload, 'game_dev')) {
+    const metadata = validateGameDev(payload.game_dev, await loadGames(repoRoot));
+    if (payload.body !== undefined && typeof payload.body !== 'string') {
+      const error = new Error('body must be a string'); error.statusCode = 400; throw error;
+    }
+    body = encodeGameDev(payload.body || '', metadata);
+    if (body.length > 8000) {
+      const error = new Error('body including game-dev metadata is too long'); error.statusCode = 400; throw error;
+    }
+  }
   const assignee = optionalText(payload.assignee, 80, 'assignee');
   const tenant = optionalText(payload.tenant, 80, 'tenant');
   const workspace = optionalText(payload.workspace, 256, 'workspace') || 'scratch';
@@ -610,7 +625,8 @@ async function createTriageTask(board, payload) {
   for (const parent of parents) args.push('--parent', parent);
   for (const skill of skills) args.push('--skill', skill);
   const stdout = await runHermesKanban(board, args);
-  return parseCreatedTask(stdout);
+  const created = parseCreatedTask(stdout);
+  return Object.hasOwn(payload, 'game_dev') ? { ...created, game_dev: parseGameDev(created.body) } : created;
 }
 
 async function createBoard(payload) {
@@ -796,6 +812,10 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
       });
     }
 
+    if (pathName === '/api/kanban/games' && req.method === 'GET') {
+      return sendJson(res, 200, { games: await loadGames(repoRoot) });
+    }
+
     if (pathName === '/api/kanban/board' && req.method === 'GET') {
       const boardPayload = await loadBoard(repoRoot, board);
       return sendJson(res, 200, boardPayload);
@@ -830,7 +850,7 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
     if (pathName === '/api/kanban/tasks' && req.method === 'POST') {
       const payload = await readRequestJson(req);
       requireWritable(mode);
-      const task = await createTriageTask(board, payload);
+      const task = await createTriageTask(board, payload, repoRoot);
       return sendJson(res, 201, { ok: true, board, readOnly: false, task });
     }
 
