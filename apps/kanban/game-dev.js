@@ -49,14 +49,18 @@ export function createGameDev({ onViewChange, onFilterChange }) {
       }
     }
     details.append(links);
+    const reference = document.createElement('details'); reference.className = 'game-reference';
+    const toggle = document.createElement('summary'); toggle.textContent = 'Test command & manual checklist';
+    reference.append(toggle);
     const command = document.createElement('pre'); command.textContent = game.testCommand || 'Test command unavailable';
-    details.append(command);
+    reference.append(command);
     const list = document.createElement('ul');
     const checklist = Array.isArray(game.manualChecklist) ? game.manualChecklist : [];
     for (const item of checklist.length ? checklist : ['Manual checklist unavailable']) {
       const li = document.createElement('li'); li.textContent = item; list.append(li);
     }
-    details.append(list);
+    reference.append(list);
+    details.append(reference);
   }
   selector.addEventListener('change', () => { selectionGeneration++; renderDetails(); onFilterChange(); });
   for (const control of [milestone, discipline]) control.addEventListener('input', onFilterChange);

@@ -4,6 +4,11 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { handleKanbanRequest } from '../scripts/kanban-bridge.mjs';
 
+// Fixture paths must remain repo-local; clean checkouts have no output/tmp yet.
+test.beforeEach(async () => {
+  await fs.mkdir(path.join(repoRoot, 'output/tmp'), { recursive: true });
+});
+
 test('validated game metadata persists in body with existing creation fields and reads back publicly', async () => {
   const saved = { ...process.env };
   const dir = await fs.mkdtemp(path.join(repoRoot, 'output/tmp/game-dev-mock-'));
