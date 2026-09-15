@@ -1,4 +1,16 @@
 /* Game Dev stays a compact lens; no separate board/status model. */
+#playtest-capture { margin-top: 16px; padding: 16px; border: 1px solid var(--accent); border-radius: 12px; background: var(--panel-2); }
+#playtest-capture h2 { font-size: 1.15rem; }
+#playtest-capture summary { cursor: pointer; color: var(--accent); }
+@media (min-width: 901px) {
+  #playtest-capture:not([open]) { margin-top: -32px; margin-left: auto; width: max-content; max-width: 48%; padding: 6px 10px; }
+}
+#capture-form { display: grid; gap: 10px; max-width: 900px; min-width: 0; }
+#capture-form label { display: grid; gap: 5px; min-width: 0; color: var(--muted); }
+#capture-form input, #capture-form textarea { width: 100%; min-width: 0; }
+#capture-form p, #playtest-capture > p { font-size: .85rem; }
+#capture-play { color: var(--accent); padding: 8px 0; }
+#capture-image, .capture-evidence-image { max-width: 100%; max-height: 280px; object-fit: contain; justify-self: start; }
 .view-switch { display: flex; gap: 8px; margin: 0 0 16px; }
 .view-switch a { padding: 9px 18px; border: 1px solid var(--border); border-radius: 10px; color: var(--muted); text-decoration: none; }
 .view-switch a[aria-current="page"] { color: var(--text); background: var(--panel-2); border-color: var(--accent); }
@@ -332,6 +344,14 @@ h1 {
   min-width: min(520px, 100%);
   resize: vertical;
 }
+
+.build-evidence { overflow-wrap: anywhere; }
+.evidence-capture { display: block; max-width: 100%; width: auto; max-height: 240px; object-fit: contain; margin: 12px 0; }
+.evidence-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.evidence-form input, .evidence-form select { box-sizing: border-box; width: 100%; min-width: 0; }
+.evidence-form select { padding: 10px; color: var(--text); background: #0f172a; border: 1px solid var(--border); border-radius: 12px; }
+.evidence-form .action-status { grid-column: 1 / -1; }
+@media (max-width: 600px) { .evidence-form { grid-template-columns: minmax(0, 1fr); } }
 
 .toolbar-note.is-error,
 .action-status.is-error {

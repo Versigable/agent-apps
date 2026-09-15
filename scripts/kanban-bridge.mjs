@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import { loadGames, parseGameDev, encodeGameDev, validateGameDev } from './kanban-games.mjs';
+import { CAPTURE_BODY_MAX } from './kanban-capture.mjs';
+import { validateEvidence, encodeEvidence, parseEvidence, sameEvidencePayload, withEvidenceLock, evidenceError } from './kanban-evidence.mjs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -483,6 +485,7 @@ async function fixtureDetail(repoRoot, board, taskId) {
     writesEnabled: boardPayload.writesEnabled,
     task,
     comments: Array.isArray(details.comments) ? details.comments : [],
+    build_evidence: parseEvidence(details.comments, task.game_dev?.game_id),
     events: Array.isArray(details.events) ? details.events : [],
     dependencies: details.dependencies || { parents: [], children: [] },
     runs: Array.isArray(details.runs) ? details.runs : [],
@@ -547,7 +550,12 @@ function sendJson(res, status, payload) {
 
 async function readRequestJson(req) {
   const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > 128000) { const error = new Error('request body is too large'); error.statusCode = 413; throw error; }
+    chunks.push(chunk);
+  }
   if (!chunks.length) return {};
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
@@ -586,7 +594,7 @@ async function createTriageTask(board, payload, repoRoot) {
       const error = new Error('body must be a string'); error.statusCode = 400; throw error;
     }
     body = encodeGameDev(payload.body || '', metadata);
-    if (body.length > 8000) {
+    if (body.length > (metadata.capture ? CAPTURE_BODY_MAX : 8000) || Buffer.byteLength(body, 'utf8') > (metadata.capture ? CAPTURE_BODY_MAX : 120000)) {
       const error = new Error('body including game-dev metadata is too long'); error.statusCode = 400; throw error;
     }
   }
@@ -600,6 +608,9 @@ async function createTriageTask(board, payload, repoRoot) {
   }
   const maxRuntime = optionalText(payload.max_runtime || payload.maxRuntime, 40, 'max_runtime');
   const idempotencyKey = optionalText(payload.idempotency_key || payload.idempotencyKey, 160, 'idempotency_key');
+  if (payload.game_dev?.capture && (!parseBoolean(payload.triage, true) || assignee || !idempotencyKey)) {
+    const error = new Error('playtest capture requires unassigned triage and an idempotency_key'); error.statusCode = 400; throw error;
+  }
   const parents = Array.isArray(payload.parents) ? payload.parents.map((item) => safeTaskId(item)) : optionalText(payload.parent || payload.parents, 2000, 'parents')?.split(/[\s,]+/).filter(Boolean).map((item) => safeTaskId(item)) || [];
   const skills = Array.isArray(payload.skills) ? payload.skills.map((item) => optionalSlug(item, 'skill')).filter(Boolean) : optionalText(payload.skills, 2000, 'skills')?.split(/[\s,]+/).filter(Boolean).map((item) => optionalSlug(item, 'skill')) || [];
   const priority = Number(payload.priority || 0);
@@ -649,6 +660,29 @@ async function commentTask(board, taskId, payload) {
   const author = optionalText(payload.author, 80, 'author') || WRITE_AUTHOR;
   await runHermesKanban(board, ['comment', taskId, text, '--author', author]);
   return { id: taskId, commented: true };
+}
+
+async function appendEvidence(repoRoot, board, taskId, input) {
+  const payload = validateEvidence(input);
+  return withEvidenceLock(`${board}:${taskId}`, async () => {
+    const detail = await loadTaskDetail(repoRoot, board, taskId);
+    if (!detail) throw evidenceError('task not found', 404);
+    const gameId = detail.task.game_dev?.game_id;
+    if (!gameId) throw evidenceError('evidence requires a game task');
+    const existing = detail.build_evidence.filter(record => record.id === payload.id);
+    if (existing.length) {
+      if (existing.some(record => !sameEvidencePayload(record, payload))) throw evidenceError('evidence id already has a different payload', 409);
+      return existing[0];
+    }
+    const record = { ...payload, version: 1, source: 'operator-reported', recorded_at: new Date().toISOString(), game_id: gameId };
+    const body = encodeEvidence(record);
+    await runHermesKanban(board, ['comment', taskId, body, '--author', WRITE_AUTHOR]);
+    const persisted = await loadTaskDetail(repoRoot, board, taskId);
+    if (!persisted?.comments.some(comment => (comment.body ?? comment.text) === body) || !persisted.build_evidence.some(item => JSON.stringify(item) === JSON.stringify(record))) {
+      throw evidenceError('evidence write could not be verified by readback', 502);
+    }
+    return record;
+  });
 }
 
 async function runTaskAction(board, taskId, payload) {
@@ -742,6 +776,7 @@ async function loadTaskDetail(repoRoot, board, taskId) {
       writesEnabled: writesEnabled(),
       task,
       comments: (parsed.comments || parsed.task?.comments || []).map((item) => ({ ...item, text: item.body ?? item.text })),
+      build_evidence: parseEvidence(parsed.comments || parsed.task?.comments || [], task.game_dev?.game_id),
       events: (parsed.events || parsed.task?.events || []).map((item) => ({ ...item, event: item.kind || item.event || item.type, summary: item.summary || item.message || (item.payload ? JSON.stringify(item.payload) : '') })),
       dependencies: parsed.dependencies || parsed.links || { parents: parsed.parents || [], children: parsed.children || [] },
       runs: parsed.runs || [],
@@ -890,6 +925,14 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
         if (diagnostics === null) return sendJson(res, 404, { error: 'task not found' });
         return sendJson(res, 200, { board, task_id: taskId, diagnostics });
       }
+    }
+
+    const evidenceMatch = pathName.match(/^\/api\/kanban\/tasks\/([^/]+)\/evidence$/);
+    if (evidenceMatch && req.method === 'POST') {
+      requireWritable(mode);
+      const payload = await readRequestJson(req);
+      const evidence = await appendEvidence(repoRoot, board, safeTaskId(evidenceMatch[1]), payload);
+      return sendJson(res, 200, { evidence });
     }
 
     const commentMatch = pathName.match(/^\/api\/kanban\/tasks\/([^/]+)\/comments$/);

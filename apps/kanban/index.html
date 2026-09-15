@@ -29,6 +29,25 @@
         </div>
         <p id="game-catalog-status" role="status"></p>
         <div id="game-details"></div>
+        <details id="playtest-capture" aria-label="Playtest capture">
+          <summary><h2 style="display:inline;font-size:1rem">Playtest → task capture</h2></summary>
+          <p>Play in a new tab, then capture an observation as an unassigned triage task. Nothing is dispatched.</p>
+          <p id="capture-context"></p>
+          <form id="capture-form" novalidate>
+            <label>Playable build URL <input name="build_url" type="url" maxlength="2048" /></label>
+            <a id="capture-play" target="_blank" rel="noopener noreferrer">Play selected build</a>
+            <label>Build identifier / commit <input name="build_identifier" maxlength="160" placeholder="Unknown — leave blank if unavailable" /></label>
+            <p>Unknown unless you supply an identifier. A preview URL is mutable, not proof of a commit or a passing build.</p>
+            <label>Capture title <input name="title" maxlength="180" /></label>
+            <label>Playtest notes <textarea name="notes" maxlength="4000" rows="4"></textarea></label>
+            <label>Screenshot attachment <input name="screenshot" type="file" accept="image/png,image/jpeg,image/webp" /></label>
+            <p>Optional PNG/JPEG/WebP, up to 8 MiB / 4096 × 4096 input. Re-encoded and resized to at most 1024 × 1024 / 64 KiB for private task storage. Preview below shows the stored image; SVG/HTML are never accepted.</p>
+            <img id="capture-image" alt="Screenshot attachment preview" hidden />
+            <button id="capture-remove-image" type="button">Remove screenshot</button>
+            <button type="submit">Create playtest triage task</button>
+          </form>
+          <p id="capture-status" role="status" aria-live="polite"></p>
+        </details>
         <p class="toolbar-note">Hermes statuses are unchanged. Review is not human playtest approval. No cards are seeded or moved automatically.</p>
       </section>
 

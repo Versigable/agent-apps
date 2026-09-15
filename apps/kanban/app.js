@@ -1,4 +1,6 @@
 import { createGameDev } from './game-dev.js';
+import { createPlaytestCapture } from './playtest-capture.js';
+import { renderEvidence } from './build-evidence.js';
 const boardEl = document.querySelector('#board');
 const statusEl = document.querySelector('[data-testid="bridge-status"]');
 const safetyEl = document.querySelector('[data-testid="safety-banner"]');
@@ -42,6 +44,7 @@ let activeDrawerTaskId = null;
 let refreshGeneration = 0;
 let drawerGeneration = 0;
 const gameDev = createGameDev({ onViewChange: () => refreshBoard(), onFilterChange: () => { if (currentBoard) renderFilteredBoard(); updateCreateFormState(); } });
+const playtestCapture = createPlaytestCapture({ gameDev, captureView, writesEnabled, postJson, refreshBoard });
 
 function text(value, fallback = '—') {
   if (value === undefined || value === null || value === '') return fallback;
@@ -269,6 +272,7 @@ function formField(label, name, options = {}) {
 }
 
 function updateCreateFormState() {
+  playtestCapture.sync();
   const enabled = writesEnabled();
   for (const field of createForm.elements) field.disabled = !enabled;
   const gameFields = document.querySelector('#game-task-fields');
@@ -426,7 +430,7 @@ function line(label, value) {
 function preBlock(content) {
   const pre = document.createElement('pre');
   pre.className = 'drawer-pre';
-  pre.textContent = text(content, '—');
+  pre.textContent = text(content, '—').replace(/```(?:game-dev|build-evidence)\s*\n[\s\S]*?```/g, '[Structured metadata is displayed in Evidence.]');
   return pre;
 }
 
@@ -459,7 +463,7 @@ function renderDetailPanel(detail) {
   );
   const body = document.createElement('section');
   body.className = 'drawer-section';
-  body.append(Object.assign(document.createElement('h3'), { textContent: 'Body' }), preBlock(task.body || 'No task body supplied.'));
+  body.append(Object.assign(document.createElement('h3'), { textContent: 'Body' }), preBlock(String(task.body || '').replace(/```game-dev\s*\n[\s\S]*?```/g, '').trim() || 'No task body supplied.'));
   panel.append(body);
   if (task.latest_summary) panel.append(line('Latest summary', task.latest_summary));
   return panel;
@@ -470,7 +474,7 @@ function renderCommentsEventsPanel(detail) {
   const commentsHeading = document.createElement('h3');
   commentsHeading.textContent = 'Comments';
   panel.append(commentsHeading);
-  panel.append(renderList(detail.comments, 'No comments yet.', (comment) => {
+  panel.append(renderList((detail.comments || []).filter(comment => !/^```build-evidence\s/.test(comment.text || comment.body || '')), 'No comments yet.', (comment) => {
     const item = document.createElement('article');
     item.className = 'timeline-item';
     item.append(line(text(comment.author, 'unknown'), formatDate(comment.created_at)), preBlock(comment.text));
@@ -510,6 +514,7 @@ function renderDiagnosticsPanel(detail) {
 }
 
 function renderTabPanel(detail, tab) {
+  if (tab === 'evidence') return renderEvidence(detail, { writesEnabled, captureView, postJson, loadTaskDetail });
   if (tab === 'details') return renderDetailPanel(detail);
   if (tab === 'comments') return renderCommentsEventsPanel(detail);
   if (tab === 'runs') return renderRunsPanel(detail);
@@ -522,6 +527,7 @@ function renderTabPanel(detail, tab) {
 function appendTabs(container, detail) {
   const tabs = [
     ['details', 'Details'],
+    ['evidence', 'Evidence'],
     ['comments', 'Comments & Events'],
     ['runs', 'Runs'],
     ['log', 'Log'],
@@ -536,6 +542,7 @@ function appendTabs(container, detail) {
   panel.dataset.testid = 'drawer-tab-panel';
 
   let tabGeneration = 0;
+  let evidencePanel;
   const loaded = new Set();
   async function activate(tabName) {
     const generation = ++tabGeneration;
@@ -551,7 +558,10 @@ function appendTabs(container, detail) {
         return;
       }
     }
-    if (generation === tabGeneration) panel.replaceChildren(renderTabPanel(detail, tabName));
+    if (generation === tabGeneration) {
+      if (tabName === 'evidence') evidencePanel ||= renderTabPanel(detail, tabName);
+      panel.replaceChildren(tabName === 'evidence' ? evidencePanel : renderTabPanel(detail, tabName));
+    }
   }
 
   for (const [tabName, label] of tabs) {

@@ -36,6 +36,32 @@ Operator web board for local Hermes Kanban lives under [`apps/kanban/`](./apps/k
 
 Operator apps should be exposed through the app preview surface, not the game preview surface. The persistent app-preview service listens on port `4175` and is intended for `https://app-preview.ninjaprivacy.org/apps/` once Traefik routes that hostname to OpenClaw port `4175`. The app dashboard mirrors the game arcade launcher at [`apps/`](./apps/) with its own operator-control flair and links to `/apps/kanban/`.
 
+#### Playtest capture
+
+In **Game Dev**, expand **Playtest → task capture** to open the selected playable build in a new tab and record notes. Submit creates an **unassigned triage task**, never a dispatch. Build identifiers are explicitly unknown when left blank; a mutable preview URL is not commit or test evidence.
+
+Drafts and errors stay in this tab, separately per board/game. An unchanged retry reuses its idempotency key; changed observations get a fresh key. Navigating board/game A → B → A cannot let an older POST or screenshot decode overwrite the current draft.
+
+Optional PNG/JPEG/WebP input is limited to 8 MiB and 4096 × 4096 pixels. The browser rasterizes, strips ancillary metadata and repeatedly resizes to a PNG no larger than 1024 × 1024 and 64 KiB, or displays a bounded error. Remove screenshot clears an invalid attachment. The bridge independently validates PNG structure, checksums, decompression limits and the complete stored body's **100,000-byte UTF-8 ceiling**. Evidence is embedded in private task metadata, not exposed by a general file-serving endpoint; raw metadata/base64 is omitted from the human task body display.
+
+Capture and Kanban regression suite (isolated fixture preview):
+
+```bash
+KANBAN_MODE=fixture PLAYWRIGHT_PREVIEW_PORT=4361 npx playwright test tests/playtest-capture*.spec.mjs tests/kanban*.spec.mjs --workers=1 --output=/tmp/playtest-finish --reporter=list
+```
+
+#### Build evidence
+
+Task drawers include an **Evidence** tab with the captured screenshot/build target and recorded scoped checks. **Add evidence** is an intentional, write-enabled game-task form; it records reports, never runs checks or dispatches workers. Build and commit are optional and default to unknown rather than inheriting a presumed tested identity. HTTP(S) screenshot/video/play links are references, not immutable deployment proof.
+
+Reports are labeled **operator-reported**. An exact known identifier match means a reported pass against the task's captured build; different identifiers show older/other-build evidence, unknown identifiers show unverified association, and failed/error/skipped outcomes remain explicit. No records means **Not tested**. Neither matching reports nor catalog checklists establish independent CI verification or live deployed identity.
+
+Writes use one UUID per unchanged draft; changing the payload generates a new ID. Failed requests preserve the draft, successful writes require task-detail GET readback before rendering persisted evidence, and stale board/drawer/edit responses cannot overwrite the current UI. The existing task comment backend remains authoritative; there is no second task store.
+
+```bash
+KANBAN_MODE=fixture PLAYWRIGHT_PREVIEW_PORT=4369 npx playwright test tests/kanban-evidence.spec.mjs --workers=1 --output=/tmp/evidence-frontend --reporter=list
+```
+
 ### X Radar
 
 Read-only X/Twitter trend radar utilities used by the scheduled Discord digest workflow.

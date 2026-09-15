@@ -174,7 +174,7 @@ test('kanban fixture mode honestly disables writes despite the operator flag', a
     await page.goto(`${baseUrl}/apps/kanban/`);
     await expect(page.getByTestId('safety-banner')).toContainText(/writes are disabled/i);
     await expect(page.getByRole('button', { name: /create triage card/i })).toBeDisabled();
-    await expect(page.getByLabel(/title/i)).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Title', exact: true })).toBeVisible();
   }, { KANBAN_READONLY: 'false' });
 });
 

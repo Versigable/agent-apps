@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { validateCapture, CAPTURE_BODY_MAX } from './kanban-capture.mjs';
 
 export const GAME_DEV_DISCIPLINES = ['gameplay', 'art', 'audio', 'performance', 'qa', 'design'];
 export const GAME_DEV_MILESTONE_MAX = 120;
@@ -11,13 +12,14 @@ export function validateGameDev(value, games) {
   if (games && !games.some(game => game.id === value.game_id)) fail('unknown game_dev.game_id');
   if (typeof value.milestone !== 'string' || !value.milestone.trim() || value.milestone.length > GAME_DEV_MILESTONE_MAX || /[\x00-\x1f`]/.test(value.milestone)) fail('game_dev.milestone must be 1-120 characters without controls or backticks');
   if (!GAME_DEV_DISCIPLINES.includes(value.discipline)) fail('invalid game_dev.discipline');
-  return { game_id: value.game_id, milestone: value.milestone.trim(), discipline: value.discipline };
+  return { game_id: value.game_id, milestone: value.milestone.trim(), discipline: value.discipline,
+    ...(Object.hasOwn(value, 'capture') ? { capture: validateCapture(value.capture) } : {}) };
 }
 
 export function parseGameDev(body) {
   if (typeof body !== 'string') return null;
   const matches = [...body.matchAll(/^```game-dev\r?\n([^]*?)\r?\n```[ \t]*(?=\r?\n|$)/gm)];
-  if (matches.length !== 1 || (body.match(/```game-dev/g) || []).length !== 1 || matches[0][1].length > 1024) return null;
+  if (matches.length !== 1 || (body.match(/```game-dev/g) || []).length !== 1 || matches[0][1].length > CAPTURE_BODY_MAX) return null;
   try { return validateGameDev(JSON.parse(matches[0][1])); } catch { return null; }
 }
 
@@ -29,7 +31,8 @@ export function encodeGameDev(body, value) {
   return `${body}${body ? '\n\n' : ''}\`\`\`game-dev\n${JSON.stringify(metadata)}\n\`\`\``;
 }
 
-export const GAME_PREVIEW_ORIGIN = 'https://game-preview.ninjaprivacy.org';
+import { GAME_PREVIEW_ORIGIN } from '../apps/kanban/evidence-validation.mjs';
+export { GAME_PREVIEW_ORIGIN };
 
 // Only the game surface is approved. Never map repository/app/private paths.
 export async function resolveGameUrl(value, repoRoot, { evidence = false } = {}) {
