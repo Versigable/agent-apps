@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "pages": [
+    {
+      "path": "docs/brain/index.md",
+      "source_revision": "a3da91f69d24c14f6612b2a1fcdae7d2abb4f1b4",
+      "verified_on": "2026-09-24",
+      "owner": "unknown",
+      "status": "verified",
+      "evidence": [
+        {
+          "path": "package.json",
+          "sha256": "518d7479a9cbfefdd4edbbd4e9fdc913b76b3b14ba513115aa4e1458d3764f2b"
+        },
+        {
+          "path": "playwright.config.mjs",
+          "sha256": "860190c3110dd3bb7681ba32efd45262bc16679e1b7cb59de375b9a10656cf7a"
+        },
+        {
+          "path": "scripts/preview-service.mjs",
+          "sha256": "95ea03d39f698948fdd0a6cbddc178ae0b074c15f413e070251bf36237850bba"
+        },
+        {
+          "path": "tests/preview-workflow.spec.mjs",
+          "sha256": "ab033d95ede557ea27c0d44619272952eb4e201d26f2d989209e6a6f1f0d94c8"
+        }
+      ]
+    },
+    {
+      "path": "docs/brain/preview-routing.md",
+      "source_revision": "a3da91f69d24c14f6612b2a1fcdae7d2abb4f1b4",
+      "verified_on": "2026-09-24",
+      "owner": "unknown",
+      "status": "verified",
+      "evidence": [
+        {
+          "path": "package.json",
+          "sha256": "518d7479a9cbfefdd4edbbd4e9fdc913b76b3b14ba513115aa4e1458d3764f2b"
+        },
+        {
+          "path": "playwright.config.mjs",
+          "sha256": "860190c3110dd3bb7681ba32efd45262bc16679e1b7cb59de375b9a10656cf7a"
+        },
+        {
+          "path": "scripts/preview-service.mjs",
+          "sha256": "95ea03d39f698948fdd0a6cbddc178ae0b074c15f413e070251bf36237850bba"
+        },
+        {
+          "path": "tests/preview-workflow.spec.mjs",
+          "sha256": "ab033d95ede557ea27c0d44619272952eb4e201d26f2d989209e6a6f1f0d94c8"
+        }
+      ]
+    },
+    {
+      "path": "docs/brain/preview-consumers.md",
+      "source_revision": "a3da91f69d24c14f6612b2a1fcdae7d2abb4f1b4",
+      "verified_on": "2026-09-24",
+      "owner": "unknown",
+      "status": "verified",
+      "evidence": [
+        {
+          "path": "apps/app.js",
+          "sha256": "299f836a3cdd749252f36ef53fdedb77f1ccbf55f194bb97e3a6b5d67e056988"
+        },
+        {
+          "path": "apps/kanban/app.js",
+          "sha256": "259b12dd110d527500d8b36285bbfb72d74a021f7c4b9f7adefe23e8fea136f3"
+        },
+        {
+          "path": "deploy/systemd/user/agent-app-preview.service",
+          "sha256": "1d799d8958a3e47c947ae215c040f2c50b0d3812525fc13ebf556a7769cee4b0"
+        },
+        {
+          "path": "deploy/systemd/user/agent-apps-preview.service",
+          "sha256": "c39a53ddb5bdb9af00cb7b195ac274e7bdec736c8a6f7c039a76e011b6a74ab1"
+        },
+        {
+          "path": "games/arcade/app.js",
+          "sha256": "caaa51091fe239c15699427eb7282a808f0035a382ab2cd8189f8ae51521c5a4"
+        },
+        {
+          "path": "package.json",
+          "sha256": "518d7479a9cbfefdd4edbbd4e9fdc913b76b3b14ba513115aa4e1458d3764f2b"
+        },
+        {
+          "path": "playwright.config.mjs",
+          "sha256": "860190c3110dd3bb7681ba32efd45262bc16679e1b7cb59de375b9a10656cf7a"
+        },
+        {
+          "path": "scripts/capture-game-video.mjs",
+          "sha256": "633108371bcb3da37140c79b7924a1c21673f568c3832838534fdf3b6c4e07fb"
+        },
+        {
+          "path": "scripts/kanban-bridge.mjs",
+          "sha256": "d5572d97a2b44d7a4eeef56ea7fb26374651216ced55c20b75327a64b5cc3512"
+        },
+        {
+          "path": "scripts/preview-service.mjs",
+          "sha256": "95ea03d39f698948fdd0a6cbddc178ae0b074c15f413e070251bf36237850bba"
+        },
+        {
+          "path": "tests/preview-workflow.spec.mjs",
+          "sha256": "ab033d95ede557ea27c0d44619272952eb4e201d26f2d989209e6a6f1f0d94c8"
+        }
+      ]
+    }
+  ]
+}
