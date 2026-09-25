@@ -32,6 +32,12 @@ verification surface, not the apps themselves.
 
 For preview routing, surface boundaries and immediate consumers, start with the [preview routing repo brain](docs/brain/index.md). It records revision-pinned source evidence and change-impact guidance, not live deployment status.
 
+## App bootstrap and repo-brain maintenance
+
+New apps and material architecture changes follow the [repo-brain bootstrap contract](docs/repo-brain-bootstrap.md): a minimal map, explicit source evidence, same-MR maintenance, and a semantic review decision. Existing app coverage remains explicitly scoped.
+
+Run `uv run --frozen python scripts/check_repo_brain.py` for mechanical integrity and `uv run pytest tests/test_repo_brain.py` for checker regressions. CI checks links, metadata, declared evidence and generated inventory; it does **not** certify semantic accuracy or live deployment.
+
 ## Current projects
 
 ### Hermes Kanban operator app

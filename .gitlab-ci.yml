@@ -8,6 +8,15 @@ python-tests:
   script:
     - uv run pytest
 
+repo-brain-checks:
+  stage: test
+  tags: [agent-dev]
+  image: ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+  timeout: 5 minutes
+  script:
+    - uv run --frozen python scripts/check_repo_brain.py
+    - uv run --frozen pytest tests/test_repo_brain.py -q
+
 browser-game-smoke:
   stage: test
   tags: [agent-dev]
