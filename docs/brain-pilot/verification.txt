@@ -1,0 +1,25 @@
+Repo-brain pilot local verification
+Source baseline: a3da91f69d24c14f6612b2a1fcdae7d2abb4f1b4
+Protocol commit: 3a4ff13
+Date: 2026-09-24 (local)
+Scope: local isolated checkout and fixture previews; no deployed service or real task-store writes.
+
+Command:
+npm ci && CI=true KANBAN_MODE=fixture KANBAN_READONLY=true PLAYWRIGHT_PREVIEW_PORT=4387 npx playwright test tests/preview-workflow.spec.mjs --workers=1 --reporter=list
+
+Observed exit code: 0
+npm: added 4 packages, audited 5 packages; found 0 vulnerabilities.
+Playwright: 9 passed (2.8s), 1 worker.
+
+Passing tests:
+- package exposes one-click preview service and video artifact commands
+- manifest advertises internal preview and artifact workflow metadata
+- preview service exposes health and denies repo-private paths
+- arcade renders one-click preview and artifact actions
+- app preview dashboard renders registered operator apps
+- preview surface mode separates app-preview from game-preview routes
+- kanban fixture mode honestly disables writes despite the operator flag
+- kanban operator dropdowns include configured agent and tenant rosters even before cards exist
+- preview service and video workflow scripts are present and executable
+
+This is a transcription of local tool output, not a GitLab CI receipt, full-suite result, security audit, or proof of live deployment identity. The last test checks file presence and selected unit content, despite its executable wording.

@@ -1,0 +1,127 @@
+## Findings
+
+Read-only evaluation completed in `/home/merquery/projects/repo-brain-treatment`. No files changed; no network calls, services, tests, or other checkouts accessed. Source and test assertions were inspected, not executed.
+
+### 1. Operator dock root redirect: selection, precedence, changes
+
+**Selection:** `scripts/preview-service.mjs:105–112`, `handler`, chooses the root destination:
+
+```js
+servesApps() && !servesGames() ? '/apps/' : '/games/arcade/'
+```
+
+It returns **302**. `previewSurface` is initialized from `PREVIEW_SURFACE`, defaulting to `all`; `servesApps` and `servesGames` recognize exact values (`:13–21`).
+
+- `apps`: dock wins, redirecting to `/apps/`.
+- `games`: redirects to `/games/arcade/`.
+- `all`, including the unset default: **arcade wins**.
+- Unknown nonempty value: both predicates are false, but root still redirects to arcade—even though game static access is denied.
+
+**Change scope:** For a root-priority change, edit the conditional in `scripts/preview-service.mjs`, not the shared predicates unless broader exposure changes are intended. Predicate changes also affect API delegation, static namespaces, slash redirects, manifest access, health advertisements and logging. Preserve app trailing-slash redirects (`:114–120`) because relative asset/manifest URLs depend on the directory path.
+
+Review:
+- `tests/preview-workflow.spec.mjs`
+- `apps/app.js` and `games/arcade/app.js` if changing destination paths or launcher behavior
+- Both tracked preview service units if changing deployment surface selection
+- `docs/brain/preview-routing.md` and `preview-consumers.md`; README if its deployment contract changes
+
+**Tests:** `preview surface mode separates app-preview from game-preview routes` (`tests/preview-workflow.spec.mjs:126–159`) checks the apps root location and `/apps` 308. It **does not explicitly check combined-mode root precedence or games-mode root redirect**. Add explicit status/location assertions for apps, games and all when changing this logic. Existing dock/arcade rendering tests (`:105–124`) cover immediate browser consumers, not root precedence.
+
+Historical rationale for arcade priority is unknown; the map labels that limitation rather than inventing a reason.
+
+### 2. Exposing Kanban API on games-only: gate, consumer, impact, invariant
+
+**Current gate:** `handler`, `scripts/preview-service.mjs:107–108`:
+
+```js
+if (servesApps() && url.pathname.startsWith('/api/kanban/')) {
+  return handleKanbanRequest(req, res, { repoRoot });
+}
+```
+
+With `PREVIEW_SURFACE=games`, it does not delegate. The request falls through to static routing, whose allowlist rejects `/api/kanban/...`, producing **403** (`safeStaticPath`, `:63–81`; `serveStatic`, `:83–87`).
+
+**Immediate downstream consumer:** `handleKanbanRequest` in `scripts/kanban-bridge.mjs:828–978`. Broadening the prefix gate exposes the existing route family—not just bridge health or a new game-specific API. That includes board/task reads, diagnostics and mutation endpoints, subject to their existing guards.
+
+Further downstream:
+- `loadBoard` → fixture data or `liveBoard`; the latter invokes `scripts/kanban-readonly.py` through Python (`:515–539`).
+- `runHermesKanban` → `runHermesRaw` → Hermes subprocess (`:498–513`).
+- UI eligibility independently checks board read-only/write flags and execution state in `apps/kanban/app.js:71–76`.
+
+**First-order impact:** Games clients gain reachability to Kanban data/routes. In live mode, requests may reach the existing task backend; enabling API reachability does not itself serve `/apps/kanban/`. Do not change `servesApps()` merely to expose an API, because that also broadens app/static routing and advertised links.
+
+**Invariant:** Reachability must remain separate from write/execution capability.
+- `resolveMode` (`bridge:91–96`): explicit fixture/live overrides; otherwise port 4174 or truthy `CI` selects fixture, else live.
+- `readOnlyMode`/`writesEnabled` (`:98–104`): writes require live mode and an explicitly false-parsed `KANBAN_READONLY`; default is read-only.
+- Fixture remains read-only even with `KANBAN_READONLY=false`.
+- `requireWritable` (`:563–574`) enforces this server-side.
+- `executionEnabled`/`requireExecution` (`:106–115`) introduce a further execution flag requirement.
+
+The games unit sets `PREVIEW_SURFACE=games` but contains no write/execution enable flags. The app unit explicitly enables them (`deploy/systemd/user/agent-app-preview.service:12–16`). These are tracked templates, not proof of effective live environment.
+
+**Tests:** Update the games API expectation in the surface-separation test (`:157`) only if exposure is intentionally changed, while retaining app-static denial. Extend games-mode coverage to capability reporting and rejected mutations. Preserve `kanban fixture mode honestly disables writes despite the operator flag` (`:161–179`): it asserts disabled capability flags, POST **423**, and disabled UI creation despite `KANBAN_READONLY=false`.
+
+### 3. Does a successful health probe prove commit, enabled writes, or no external dependencies?
+
+**No, on all three.**
+
+`healthPayload`, `scripts/preview-service.mjs:46–61`, returns:
+- Constant `ok: true`
+- Service name
+- Configured surface
+- Conditional advertised app/game URLs
+
+`handler` serves it with 200 at `/healthz` independently of surface (`:122–123`). It contains **no commit identity, write/execution flags, task-store probe or dependency inventory**. Even an invalid surface can return successful health.
+
+Probe guarantees differ:
+- `healthcheck` (`:133–139`) requires a successful HTTP response and parseable JSON. It does not validate `ok`, service identity, revision or capabilities.
+- Capture tooling’s `healthOk` (`scripts/capture-game-video.mjs:18–25`) checks **HTTP success only**, without parsing JSON.
+- `ensurePreviewServer` (`:45–58`) reuses any server passing that check. `main` separately loads the **local** game registry and navigates the configured target (`:79–97`); health does not establish that target’s content matches the local checkout.
+
+`GET /api/kanban/health` is different: `handleKanbanRequest:835–847` reports configuration-derived mode, board, write/execution flags and allowed-write names. It **does not exercise the task backend**, establish successful persistence or identify a deployed commit.
+
+Source establishes connections to Python and Hermes subprocesses, contradicting any inference that successful generic health proves a dependency-free application. It does not establish whether those dependencies currently work, or enumerate all external services/clients.
+
+**Tests:** Existing generic-health and surface-separation tests check payload fields and routing. The fixture-write test checks one capability-enforcement case. None of these inspected assertions proves deployed identity or complete dependency health. The service-template test (`tests/preview-workflow.spec.mjs:203–228`) checks tracked file contents; despite its title, its file loop checks `isFile()`, not executable bits or installation.
+
+### 4. Apps-only `/__preview/manifest`: behavior and regression
+
+**Actual source behavior:** **403**, JSON `{ "error": "forbidden" }`.
+
+`handler`, `scripts/preview-service.mjs:125–128`, explicitly requires `servesGames()`. It does not fall back to an app manifest. For games/all, it reads `games/manifest.json` and adds request-time `resolvedAt`; that is not a commit identifier or deployment timestamp.
+
+The app registry is instead available through static `/apps/manifest.json`. The consumer map identifies `apps/app.js::loadManifest` as fetching `./manifest.json`, not the wrapper endpoint.
+
+**Exact regression:** `preview surface mode separates app-preview from game-preview routes`:
+- Apps-only wrapper **403**: `tests/preview-workflow.spec.mjs:144`
+- Apps static manifest **200**: `:139`
+- Games wrapper **200**: `:154`
+
+The test asserts status, not the denied JSON body or successful wrapper’s `resolvedAt` shape. Those are source-derived guarantees here, not executed test results.
+
+## Omissions and evidence limits
+
+- Runtime, deployed revision, installed units, proxy/auth controls, external consumers, and live backend availability remain unverified.
+- I did not independently inspect Git revision/history; the supplied baseline and map identify `a3da91f69d24c14f6612b2a1fcdae7d2abb4f1b4`.
+- Launcher fetch details above rely on the map where not independently read. The apps search returned truncated context before the dock’s `loadManifest` body; no additional call was made beyond the budget.
+- No protocol, answer keys or other agents’ output were opened.
+- No test pass or deployment success is claimed.
+
+## Exact repository calls
+
+**12 file-read/search calls**, no terminal calls. Paths below are relative to the requested repository:
+
+1. `read_file("README.md", limit=350)`
+2. `read_file("docs/brain/index.md", limit=300)`
+3. `read_file("docs/brain/preview-routing.md")`
+4. `read_file("docs/brain/preview-consumers.md")`
+5. `read_file("scripts/preview-service.mjs")`
+6. `read_file("tests/preview-workflow.spec.mjs", limit=330)`
+7. `read_file("scripts/kanban-bridge.mjs", offset=1, limit=125)`
+8. `read_file("scripts/kanban-bridge.mjs", offset=498, limit=87)`
+9. `read_file("scripts/kanban-bridge.mjs", offset=828, limit=160)`
+10. `read_file("scripts/capture-game-video.mjs", limit=220)`
+11. `search_files(path="apps", file_glob="app.js", pattern="function (loadManifest|writesEnabled|executionEnabled)|fetch\\('./manifest.json'|requireExecution", context=5, limit=20)`
+12. `search_files(path="deploy/systemd/user", file_glob="*preview.service", pattern=".", limit=100)`
+
+Additionally loaded the required `codebase-inspection` skill once; no installation or analysis commands from it were run.

@@ -1,0 +1,126 @@
+## Findings
+
+### 1. Operator dock root redirect: selection, precedence, and change surface
+
+**The redirect is selected server-side**, not by the dock frontend:
+
+- `scripts/preview-service.mjs:13–21`: `PREVIEW_SURFACE` defaults to `'all'`; `servesApps()` accepts `all|apps`, and `servesGames()` accepts `all|games`.
+- `handler()`, lines **110–112**, returns **302** for `/`:
+  ```js
+  location: servesApps() && !servesGames() ? '/apps/' : '/games/arcade/'
+  ```
+- Consequently:
+  - `apps` → operator dock `/apps/`.
+  - `games` → `/games/arcade/`.
+  - `all`, including the default → `/games/arcade/`. **The dock does not win when both surfaces are enabled.**
+  - An unrecognized surface also selects the arcade redirect, although neither static surface is allowed. No surface validation was present in this file.
+- `/apps` and `/apps/kanban` receive separate **308** canonical redirects only when apps are enabled (lines 114–120).
+
+**Deployment selection:** tracked `deploy/systemd/user/agent-app-preview.service:10–16` configures port `4175`, `PREVIEW_SURFACE=apps`, and operator flags. `agent-apps-preview.service:10–12` configures port `4173`, `PREVIEW_SURFACE=games`.
+
+**Files/tests for a change:**
+- Change root precedence in `scripts/preview-service.mjs::handler`.
+- If changing which surface a deployment runs, change its tracked systemd unit instead; changing dock content or registry does not change this redirect.
+- Existing regression: `tests/preview-workflow.spec.mjs`, **“preview surface mode separates app-preview from game-preview routes”** (126–159). It asserts apps-root location `/apps/`, but **does not assert games-root or all-root redirect precedence**, nor the apps-root 302 status.
+- Add explicit manual-redirect status/location checks for `apps`, `games`, and `all`; retain surface-isolation checks.
+- The same test file’s **“preview service and video workflow scripts are present and executable”** checks deployment unit strings (203–228). Despite its name, the initial loop checks `isFile()`, not executable permissions.
+- For a visible dock change, the existing **“app preview dashboard renders registered operator apps”** test (114–124) covers frontend rendering and links.
+
+### 2. Games-only exposing the Kanban API
+
+**Current gate:** `scripts/preview-service.mjs::handler`, **107–109**:
+```js
+if (servesApps() && url.pathname.startsWith('/api/kanban/')) {
+  return handleKanbanRequest(req, res, { repoRoot });
+}
+```
+
+In games-only mode, API requests fall through to `serveStatic()`. `safeStaticPath()` rejects their path, so the response is **403 `{"error":"forbidden"}`**, not a bridge 404.
+
+**Downstream receiver:** `scripts/kanban-bridge.mjs::handleKanbanRequest` (828–978). This is a broad operator bridge, not just a health handler: board/task reads, logs/context, game catalog, task and board creation, comments, actions, evidence, dispatch, and claim.
+
+**Frontend consumers:**
+- `apps/kanban/app.js::refreshBoard` requests board, boards, assignees, and execution status (882–886); other handlers POST operator actions.
+- `apps/kanban/game-dev.js:85` requests `/api/kanban/games`.
+- `apps/app.js:46` renders the registry-provided bridge-health link.
+
+**First-order effect of widening/removing the gate:** games-only would expose bridge routes on the game-preview listener even while `/apps/*` remains forbidden. This is an API exposure change, not merely making a launcher link work. It would not automatically enable writes: bridge capabilities remain separately governed.
+
+- `resolveMode`, `readOnlyMode`, `writesEnabled`, and `executionEnabled` (`kanban-bridge.mjs:91–107`) determine capability.
+- Writes require live mode and a false read-only setting; execution additionally requires the execution flag.
+- `requireWritable()` (563–574) enforces writes on the server.
+- Dispatch/claim additionally require `DISPATCH`/`CLAIM` confirmation (448–472).
+- The tracked games unit does not explicitly enable writes. Nevertheless, widening routing must not be treated as intrinsically read-only: effective environment matters.
+
+**Invariant:** preserve app/game surface separation unless intentionally revising that boundary, and preserve independent write/execution safeguards. `README.md:37` explicitly places operator apps on app-preview, not game-preview. `apps/kanban/README.md:68–82` requires a constrained bridge, no directly exposed Hermes dashboard/plugin API, no automatic ready promotion, and fixture-mode write denial. Read-only capability is **not** a guarantee that every GET is filesystem-write-free: some CLI-backed reads may initialize/migrate schemas.
+
+**Tests:**
+- `preview-workflow.spec.mjs:147–158` expressly requires games-only `/api/kanban/health` to return **403**, while game routes work and apps routes remain blocked.
+- Extend surface tests to representative read and POST routes if revising this boundary; health-only coverage is narrower than the whole API.
+- Preserve **“kanban fixture mode honestly disables writes despite the operator flag”** (161–179).
+- `tests/kanban-refresh.spec.mjs:180–195` verifies board reads do not invoke the CLI or promote scheduled tasks, preserve DB bytes, and do not silently fall back after live errors.
+- Lines 198–218 test intentional writes with a mock CLI while dispatch/claim remain locked.
+
+### 3. What a successful health probe actually proves
+
+**It proves neither deployed commit identity, enabled writes, nor absence of external dependencies.**
+
+There are two different health endpoints:
+
+| Probe | Actual source guarantee | Not established |
+|---|---|---|
+| `/healthz` | `healthPayload()` (`preview-service.mjs:46–61`) returns constant `ok:true`, service name, configured surface, and appropriate constructed URLs; handler returns 200 (122–123). | Commit/build identity, static-file availability, dependency readiness, bridge capability, successful writes, public ingress correctness. |
+| `/api/kanban/health` | `handleKanbanRequest:835–847` returns mode, board, calculated read/write/execution flags, allowed writes, and columns. | Working DB/CLI, successful persistence, execution success, deployed commit identity. The health branch does not exercise those dependencies. |
+
+The CLI `healthcheck()` (`preview-service.mjs:133–145`) fetches **`http://127.0.0.1:${port}/healthz`**, requires an HTTP-success status, parses JSON, and prints it. It **does not validate service identity, `payload.ok`, expected surface, or revision**. A successful command is therefore weaker than a validated application-specific health response. Its port defaults to 4173; probing the apps listener requires the appropriate port environment.
+
+**External dependencies exist in live paths:**
+- `runHermesRaw()` invokes the configured/default Hermes executable (498–512).
+- `liveBoard()` invokes Python and `scripts/kanban-readonly.py` (515–539).
+- The documented reader depends on the local Hermes SQLite database (`apps/kanban/README.md:76–82`).
+- Public ingress is separately discussed as Traefik routing in `README.md:37,121–141`.
+
+Neither health handler establishes the availability of these dependencies. Nor does this inspection establish which outbound/network dependencies every other repository feature may use.
+
+**Evidence caveat:** `README.md:41,55–57` explicitly says mutable preview URLs and operator-reported evidence do not establish deployed identity or independent CI verification.
+
+**Tests:** `preview-workflow.spec.mjs:86–103` checks health shape and separately checks static serving/private-path denial; the surface test checks advertised URLs; the fixture test proves a healthy bridge can still deny writes with 423. No revision-attestation assertion was present in the inspected health tests.
+
+### 4. Apps-only `/__preview/manifest`
+
+**Actual behavior: HTTP 403 with `{"error":"forbidden"}`.** It does not return the app manifest and does not redirect.
+
+`handler()`, `scripts/preview-service.mjs:125–129`, implements this as a **games manifest endpoint**:
+- If games are disabled, return 403 immediately.
+- Otherwise read `games/manifest.json` and add `resolvedAt`.
+
+The apps registry is separately available at `/apps/manifest.json`.
+
+**Exact regression:** `tests/preview-workflow.spec.mjs`, **“preview surface mode separates app-preview from game-preview routes”**:
+- Apps-only `/apps/manifest.json` → 200 (139).
+- Apps-only `/__preview/manifest` → 403 (144).
+- Games-only `/__preview/manifest` → 200 (154).
+
+That test checks status, not the forbidden body or positive manifest content.
+
+## Scope, omissions, and call accounting
+
+- Read-only inspection completed; **no files created or modified, no network access, no services started, and no tests executed**.
+- Git verification failed: the supplied directory reported **“not a git repository.”** I therefore **could not independently verify** correspondence to supplied source `a3da91f69d24c14f6612b2a1fcdae7d2abb4f1b4`.
+- No other checkout, map, protocol, answer key, or other agent output was read.
+- Test findings describe inspected assertions, **not passing execution results**. Actual deployed environment, ingress, commit, and live capabilities remain unknown.
+- Used **12 file-read/search/terminal calls**, plus one mandatory `skill_view("codebase-inspection")` call. Exact repository-call sequence, all rooted at `/home/merquery/projects/repo-brain-baseline`:
+  1. Terminal: `git rev-parse HEAD && git ls-files` — failed before listing.
+  2. File search: `*`, limit 160.
+  3. Read `scripts/preview-service.mjs`.
+  4. Read `tests/preview-workflow.spec.mjs`.
+  5. Search `scripts/kanban-bridge.mjs`: `health|readOnly|writesEnabled|KANBAN_|handleKanbanRequest|spawn|exec|confirm|capabil`.
+  6. Read bridge from line 430, limit 1100.
+  7. Read `README.md`.
+  8. Search `apps/**/*.js`: `/api/kanban/|writesEnabled|readOnly|health`.
+  9. Read `apps/kanban/README.md`.
+  10. Search `tests/*.spec.mjs`: `test\(|recompute_ready|readonly|read-only|HERMES_KANBAN_DB`.
+  11. Search `deploy/systemd/user`: `.`.
+  12. Read `tests/kanban-refresh.spec.mjs` from line 180, limit 100.
+
+The bridge and broad test searches were truncated; targeted subsequent reads covered the health handler, operation gates, and relevant read-side tests, but this was not an exhaustive repository audit.
