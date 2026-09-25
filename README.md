@@ -32,6 +32,10 @@ verification surface, not the apps themselves.
 
 For preview routing, surface boundaries and immediate consumers, start with the [preview routing repo brain](docs/brain/index.md). It records revision-pinned source evidence and change-impact guidance, not live deployment status.
 
+## Active four-week repo-brain trial
+
+**Repo-brain is the default for substantive `agent-apps` work from 2026-09-25 until 2026-10-23 UTC.** Follow the [trial policy](docs/repo-brain-trial.md) and use the **Repo-Brain Trial** MR template: predict impact before coding, verify against source, maintain affected cards in the same MR, and record useful discoveries, misses and measured upkeep. Existing review/deployment gates remain unchanged. No automatic extension or expansion to other repos.
+
 ## App bootstrap and repo-brain maintenance
 
 New apps and material architecture changes follow the [repo-brain bootstrap contract](docs/repo-brain-bootstrap.md): a minimal map, explicit source evidence, same-MR maintenance, and a semantic review decision. Existing app coverage remains explicitly scoped.
