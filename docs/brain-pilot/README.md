@@ -4,6 +4,10 @@
 
 This pilot evaluates one narrow slice of `agent-apps`: preview routing and its immediate game/app/Kanban consumers. It is not an application rewrite, a security audit, or a claim that more documentation is always better.
 
+## Result
+
+**Baseline 8/8; map reader 8/8; both used 12 repository calls.** The separate stale-card challenge passed. No efficiency or correctness improvement was demonstrated. [Read the full results, controls, raw answers and limitations](results.md).
+
 ## Evidence trail
 
 - [Repo map](../brain/index.md): task router, request flow, immediate consumers and capability boundaries.
