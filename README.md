@@ -28,6 +28,10 @@ that trust comes from reproducible evidence — a test run, a screenshot, a reco
 of from a summary the agent wrote about its own work. The interesting engineering here is the
 verification surface, not the apps themselves.
 
+## Source navigation
+
+For preview routing, surface boundaries and immediate consumers, start with the [preview routing repo brain](docs/brain/index.md). It records revision-pinned source evidence and change-impact guidance, not live deployment status.
+
 ## Current projects
 
 ### Hermes Kanban operator app

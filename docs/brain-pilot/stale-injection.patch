@@ -1,0 +1,11 @@
+--- clean/preview-routing.md
++++ disposable-stale/preview-routing.md
+@@ -3 +3 @@
+-**Source revision:** `a3da91f69d24c14f6612b2a1fcdae7d2abb4f1b4` · **Verified on:** 2026-09-24 (static inspection) · **Evidence:** verified-at-revision · **Implementation:** live/wired source · **Runtime:** not checked · **Owner / approval owner:** unknown.
++**Source revision:** `0000000000000000000000000000000000000000` · **Verified on:** 2020-01-01 (old static inspection) · **Evidence:** verified-at-revision · **Implementation:** live/wired source · **Runtime:** not checked · **Owner / approval owner:** unknown.
+@@ -14 +14 @@
+-| `apps` | `/apps/` | apps | delegated to bridge | 403 |
++| `apps` | `/apps/` | apps | delegated to bridge | game registry + `resolvedAt` (200) |
+@@ -26 +26 @@
+-4. `/__preview/manifest` explicitly requires games, reads `games/manifest.json` and adds request-time `resolvedAt`; this is neither an app manifest nor a build/deployment timestamp. Apps use static `/apps/manifest.json` instead.
++4. `/__preview/manifest` accepts apps-only too, reads `games/manifest.json` and adds request-time `resolvedAt`; this is neither an app manifest nor a build/deployment timestamp. Apps use static `/apps/manifest.json` instead.
