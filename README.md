@@ -44,7 +44,7 @@ Run `uv run --frozen python scripts/check_repo_brain.py` for mechanical integrit
 
 Operator web board for local Hermes Kanban lives under [`apps/kanban/`](./apps/kanban/) and is served by the preview service at `/apps/kanban/`. Current app-preview exposes constrained card/board operations plus high-friction manual dispatch/claim controls while still avoiding automatic ready promotion.
 
-Operator apps should be exposed through the app preview surface, not the game preview surface. The persistent app-preview service listens on port `4175` and is intended for `https://app-preview.ninjaprivacy.org/apps/` once Traefik routes that hostname to OpenClaw port `4175`. The app dashboard mirrors the game arcade launcher at [`apps/`](./apps/) with its own operator-control flair and links to `/apps/kanban/`.
+Operator apps should be exposed through the app preview surface, not the game preview surface. The persistent app-preview service listens on port `4175` and serves `https://app-preview.ninjaprivacy.org/apps/`, alongside the scoped gamedev operator host. The app dashboard mirrors the game arcade launcher at [`apps/`](./apps/) with its own operator-control flair and links to `/apps/kanban/`.
 
 #### Playtest capture
 
@@ -71,6 +71,16 @@ Writes use one UUID per unchanged draft; changing the payload generates a new ID
 ```bash
 KANBAN_MODE=fixture PLAYWRIGHT_PREVIEW_PORT=4369 npx playwright test tests/kanban-evidence.spec.mjs --workers=1 --output=/tmp/evidence-frontend --reporter=list
 ```
+
+### Public playable isolation and editable Game Dev — deployed
+
+Public `game-preview.ninjaprivacy.org` uses isolated static-only4173. Authentik-protected `gamedev.ninjaprivacy.org` and `app-preview.ninjaprivacy.org` share the existing operator4175 process/store. Editable Game Dev is deployed from `editable-release/candidate` and user-confirmed, not a read-only substitute. General app-host management and high-friction execution remain available; game scripts stay off both operator origins.
+
+[Canonical migration status and remaining closure](docs/game-dev-operator-migration.md) separates parent package/installed/browser receipts, owner acceptance, exact public ZIP continuity and still-open provenance/media/auth-evidence limits. The [editable activation contract](docs/game-dev-editable-activation.md) covers writer/CSRF integration; the [static deployment runbook](docs/public-playable-deployment.md) covers isolation. Do not expose the old combined preview publicly or infer installed configuration from tracked templates.
+
+### Versioned native ZIP downloads — live existing publication
+
+The explicit operator build store now exposes `gdp-002-kit-v0.1-zip1/linux-x64` for Unity Pipeline Fixture. Parent live receipts verify the exact operator ZIP GET200 and read-only browser build selection with both download links; public static bytes remain unchanged. See the canonical status above for exact identity and verification scope, and [publication/routes](docs/game-build-downloads.md) for the publisher contract. Historical staging plans are not current deployment status; current remote CI and committed/tagged source provenance remain parent-owned.
 
 ### X Radar
 

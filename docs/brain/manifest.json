@@ -6,7 +6,7 @@
       "source_revision": "a3da91f69d24c14f6612b2a1fcdae7d2abb4f1b4",
       "verified_on": "2026-09-24",
       "owner": "unknown",
-      "status": "verified",
+      "status": "stale",
       "evidence": [
         {
           "path": "package.json",
@@ -24,14 +24,15 @@
           "path": "tests/preview-workflow.spec.mjs",
           "sha256": "ab033d95ede557ea27c0d44619272952eb4e201d26f2d989209e6a6f1f0d94c8"
         }
-      ]
+      ],
+      "stale_reason": "Baseline dispatcher, consumer and test evidence predates the deployed editable operator and published ZIP integration. Current deployment receipts are linked separately; they do not semantically reverify this historical source map. Retain baseline revision/date/hashes until source and incoming consumers are reinspected. Semantic review owner unknown; parent owns release/CI provenance."
     },
     {
       "path": "docs/brain/preview-routing.md",
       "source_revision": "a3da91f69d24c14f6612b2a1fcdae7d2abb4f1b4",
       "verified_on": "2026-09-24",
       "owner": "unknown",
-      "status": "verified",
+      "status": "stale",
       "evidence": [
         {
           "path": "package.json",
@@ -49,14 +50,15 @@
           "path": "tests/preview-workflow.spec.mjs",
           "sha256": "ab033d95ede557ea27c0d44619272952eb4e201d26f2d989209e6a6f1f0d94c8"
         }
-      ]
+      ],
+      "stale_reason": "Baseline dispatcher, consumer and test evidence predates the deployed editable operator and published ZIP integration. Current deployment receipts are linked separately; they do not semantically reverify this historical source map. Retain baseline revision/date/hashes until source and incoming consumers are reinspected. Semantic review owner unknown; parent owns release/CI provenance."
     },
     {
       "path": "docs/brain/preview-consumers.md",
       "source_revision": "a3da91f69d24c14f6612b2a1fcdae7d2abb4f1b4",
       "verified_on": "2026-09-24",
       "owner": "unknown",
-      "status": "verified",
+      "status": "stale",
       "evidence": [
         {
           "path": "apps/app.js",
@@ -102,7 +104,8 @@
           "path": "tests/preview-workflow.spec.mjs",
           "sha256": "ab033d95ede557ea27c0d44619272952eb4e201d26f2d989209e6a6f1f0d94c8"
         }
-      ]
+      ],
+      "stale_reason": "Baseline dispatcher, consumer and test evidence predates the deployed editable operator and published ZIP integration. Current deployment receipts are linked separately; they do not semantically reverify this historical source map. Retain baseline revision/date/hashes until source and incoming consumers are reinspected. Semantic review owner unknown; parent owns release/CI provenance."
     }
   ]
 }

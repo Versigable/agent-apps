@@ -66,6 +66,8 @@ export function renderEvidence(detail, {writesEnabled, captureView, postJson, lo
       validateEvidence({id:draftId,...payload});
       busy=true;button.disabled=true;status.textContent='Saving operator report…';status.classList.remove('is-error');
       await postJson(`/api/kanban/tasks/${encodeURIComponent(task.id)}/evidence?board=${encodeURIComponent(detail.board)}`,{id:draftId,...payload});
+      // A stale drawer must not reinterpret this task under a newer game scope.
+      if(!view.isCurrent())return;
       // Always confirm persistence with the authoritative detail endpoint.
       const saved=await loadTaskDetail(task.id,detail.board);
       if(!current())return;

@@ -1,0 +1,8 @@
+/* Shared Kanban owns layout; only scoped build additions belong here. */
+[hidden] { display:none !important; }
+.published-builds { margin: .6rem 0; padding: .6rem 0; border-top:1px solid #344353; }
+.published-builds label { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+.published-builds p { margin:.4rem 0; font-size:.82rem; }
+.published-builds code { display:block; overflow-wrap:anywhere; margin:.6rem 0; }
+.published-builds select { max-width:100%; }
+.published-builds details { font-size:.85rem; }

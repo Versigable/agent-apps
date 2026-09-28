@@ -21,9 +21,17 @@ browser-game-smoke:
   stage: test
   tags: [agent-dev]
   image: mcr.microsoft.com/playwright:v1.59.1-noble
+  before_script:
+    # Noble is Ubuntu/apt-based. Build fixtures require Python and Info-ZIP.
+    - apt-get update && apt-get install -y --no-install-recommends python3 unzip
+    - python3 --version && unzip -v && node --version
   script:
     - npm ci
     - npm run test:ci
+    - npm run test:build-downloads
+    - npm run test:playable-static
+    - npm run test:operator
+    - npm run test:game-dev-frontend
   artifacts:
     when: always
     expire_in: 7 days

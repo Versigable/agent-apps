@@ -33,12 +33,26 @@ export function createPlaytestCapture({ gameDev, captureView, writesEnabled, pos
     const nextKey = game ? `${captureView().board}/${game.id}` : null;
     if (nextKey !== key) {
       key = nextKey;
-      if (key && !drafts.has(key)) drafts.set(key, { title: '', notes: '', build_url: game.previewUrl || '', build_identifier: '', screenshot: null, revision: 0, reading: false, pending: false });
+      if (key && !drafts.has(key)) drafts.set(key, { title: '', notes: '', build_url: game.projectType === 'native' ? '' : game.previewUrl || '', build_identifier: '', screenshot: null, revision: 0, reading: false, pending: false });
       current = drafts.get(key);
       for (const field of fields) form.elements[field].value = current?.[field] || '';
       form.elements.screenshot.value = '';
       message(current?.message || (current ? 'Capture notes here; drafts stay in this tab per board and game.' : 'Select an available game to capture a playtest.'), current?.error);
     }
+    const build = game?.selectedBuild;
+    const buildKey = build ? `${build.version}/${build.platform}/${build.sha256}` : '';
+    if (current && current.selectedBuildKey !== buildKey) {
+      // A deliberate picker selection supplies a target only to an untouched
+      // observation; never rewrite an existing report or a user-entered identity.
+      if (!current.title && !current.notes && !current.pending) {
+        current.build_url = build ? new URL(build.downloadUrl, location.href).href : game.projectType === 'native' ? '' : game.previewUrl || '';
+        current.build_identifier = build ? `${build.version} / ${build.platform} / sha256:${build.sha256}` : '';
+        for (const field of ['build_url', 'build_identifier']) form.elements[field].value = current[field];
+        current.revision++;
+      }
+      current.selectedBuildKey = buildKey;
+    }
+    play.textContent = game?.projectType === 'native' ? 'Download selected native build' : 'Play selected build';
     context.textContent = game ? `${game.title} · Board: ${captureView().board}` : 'No game selected';
     showMedia(); controls();
   }

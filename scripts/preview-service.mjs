@@ -4,6 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleKanbanRequest } from './kanban-bridge.mjs';
+import { handleGameDevRequest } from './game-dev-api.mjs';
+import { operatorRequestPolicy, operatorCsrfPolicy } from './operator-policy.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
@@ -11,13 +13,22 @@ const host = process.env.PREVIEW_HOST || '0.0.0.0';
 const port = Number(process.env.PREVIEW_PORT || 4173);
 const publicBaseUrl = process.env.PREVIEW_PUBLIC_URL || `http://100.104.27.125:${port}`;
 const previewSurface = process.env.PREVIEW_SURFACE || 'all';
+const operatorSurface = previewSurface === 'apps' || port === 4175 || Boolean(process.env.GAME_DEV_PUBLIC_URL);
+const gameDevShell = new Map([
+  ['/games/dev/', 'games/dev/index.html'],
+  ['/games/dev/index.html', 'games/dev/index.html'],
+  ['/games/dev/app.js', 'games/dev/app.js'],
+  ['/games/dev/styles.css', 'games/dev/styles.css'],
+  ...['index.html','styles.css','app.js','game-dev.js','playtest-capture.js','build-evidence.js','evidence-validation.mjs','transport.js']
+    .map(name=>[`/apps/kanban/${name}`,`apps/kanban/${name}`])
+]);
 
 function servesGames() {
-  return previewSurface === 'all' || previewSurface === 'games';
+  return !operatorSurface && (previewSurface === 'all' || previewSurface === 'games');
 }
 
 function servesApps() {
-  return previewSurface === 'all' || previewSurface === 'apps';
+  return operatorSurface || previewSurface === 'all' || previewSurface === 'apps';
 }
 
 const mimeTypes = new Map([
@@ -38,7 +49,7 @@ function sendJson(res, status, payload) {
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
-    'access-control-allow-origin': '*'
+    ...(!operatorSurface ? { 'access-control-allow-origin': '*' } : {})
   });
   res.end(JSON.stringify(payload, null, 2));
 }
@@ -80,10 +91,10 @@ function safeStaticPath(urlPath) {
   return fullPath;
 }
 
-async function serveStatic(req, res) {
+async function serveStatic(req, res, trustedFile = null) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   let pathname = url.pathname;
-  let filePath = safeStaticPath(pathname);
+  let filePath = trustedFile ? path.join(repoRoot, trustedFile) : safeStaticPath(pathname);
   if (!filePath) return sendJson(res, 403, { error: 'forbidden' });
 
   try {
@@ -94,7 +105,7 @@ async function serveStatic(req, res) {
     res.writeHead(200, {
       'content-type': mimeTypes.get(ext) || 'application/octet-stream',
       'cache-control': ext === '.html' || ext === '.json' ? 'no-store' : 'public, max-age=60',
-      'access-control-allow-origin': '*'
+      ...(!operatorSurface ? { 'access-control-allow-origin': '*' } : {})
     });
     res.end(body);
   } catch (error) {
@@ -103,7 +114,46 @@ async function serveStatic(req, res) {
 }
 
 async function handler(req, res) {
+  if (operatorSurface) {
+    const policy = operatorRequestPolicy(req);
+    if (policy.status) return sendJson(res, policy.status, { error: policy.error });
+    const csrf = operatorCsrfPolicy(req, policy);
+    if (csrf.status) return sendJson(res, csrf.status, { error: csrf.error });
+    if (csrf.session) {
+      if (csrf.setCookie) res.setHeader('set-cookie',csrf.setCookie);
+      return sendJson(res,200,csrf.session);
+    }
+    const pathname = new URL(req.url, 'http://localhost').pathname;
+    if (policy.scope === 'game-dev') {
+      if (pathname.startsWith('/api/game-dev/')) return handleGameDevRequest(req, res, { repoRoot });
+      if (pathname === '/' || pathname === '/games/dev') {
+        res.writeHead(pathname === '/' ? 302 : 308, { location: '/games/dev/' });
+        return res.end();
+      }
+      if (pathname === '/healthz') return sendJson(res, 200, { ok: true, service: 'agent-apps-preview', surface: 'game-dev' });
+      if (gameDevShell.has(pathname)) return serveStatic(req, res, gameDevShell.get(pathname));
+      return sendJson(res, 403, { error: 'forbidden' });
+    }
+    // Even an accidental `all` surface on 4175 must not expose player code.
+    if (!(pathname === '/' || pathname === '/healthz' || pathname === '/apps' || pathname.startsWith('/apps/') || pathname.startsWith('/api/kanban/'))) {
+      return sendJson(res, 403, { error: 'forbidden' });
+    }
+  }
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  // Legacy local preview has no operator session. This compatibility discovery
+  // response issues no token/cookie and cannot activate the scoped write path.
+  if (!operatorSurface && req.url === '/api/operator/session') {
+    return sendJson(res,req.method==='GET' ? 200 : 405,req.method==='GET' ? {csrfRequired:false} : {error:'Method not allowed'});
+  }
+  if (url.pathname.startsWith('/api/game-dev/')) {
+    if (!servesGames()) return sendJson(res, 403, { error: 'forbidden' });
+    if (!['GET','HEAD'].includes(req.method)) return sendJson(res,405,{error:'Scoped writes require the operator surface'});
+    return handleGameDevRequest(req, res, { repoRoot });
+  }
+  if (servesGames() && url.pathname === '/games/dev') {
+    res.writeHead(308, { location: '/games/dev/' });
+    return res.end();
+  }
   if (servesApps() && url.pathname.startsWith('/api/kanban/')) {
     return handleKanbanRequest(req, res, { repoRoot });
   }
@@ -132,9 +182,24 @@ async function handler(req, res) {
 
 async function healthcheck() {
   const url = `http://127.0.0.1:${port}/healthz`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Preview healthcheck failed: ${response.status}`);
-  const payload = await response.json();
+  const headers = operatorSurface ? { host: new URL(process.env.PREVIEW_PUBLIC_URL).host } : {};
+  const payload = await new Promise((resolve, reject) => {
+    const request = http.get(url, { headers }, response => {
+      if (response.statusCode !== 200) {
+        response.resume();
+        return reject(new Error(`Preview healthcheck failed: ${response.statusCode}`));
+      }
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', chunk => { body += chunk; });
+      response.on('error', reject);
+      response.on('end', () => {
+        try { resolve(JSON.parse(body)); } catch (error) { reject(error); }
+      });
+    });
+    request.on('error', reject);
+    request.setTimeout(5000, () => request.destroy(new Error('Preview healthcheck timed out')));
+  });
   console.log(JSON.stringify(payload, null, 2));
 }
 

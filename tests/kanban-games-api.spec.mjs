@@ -37,6 +37,10 @@ test('validated game metadata persists in body with existing creation fields and
     const legacy = await api('/api/kanban/tasks', { title: 'Legacy', body: 'original' });
     expect(legacy.code).toBe(201);
     expect(legacy.data.task.body).toBe('original');
+    const native = await api('/api/kanban/tasks', { title: 'Native readiness', game_dev: { ...game_dev, game_id: 'unity-pipeline-fixture' } });
+    expect(native.code).toBe(201);
+    expect(native.data.task.game_dev.game_id).toBe('unity-pipeline-fixture');
+    expect(native.data.task.args).toContain('--triage');
     expect(legacy.data.task.args).not.toContain('--game-dev');
   } finally { process.env = saved; await fs.rm(dir, { recursive: true, force: true }); }
 });
@@ -90,11 +94,12 @@ test('games API projects the real manifest without serving games on apps', async
   const manifest = JSON.parse(await fs.readFile('games/manifest.json', 'utf8'));
   const result = await api('/api/kanban/games');
   expect(result.code).toBe(200);
-  expect(result.data.games.map(g => g.id)).toEqual(manifest.games.map(g => g.id));
+  const projects = JSON.parse(await fs.readFile('apps/kanban/dev-projects.json', 'utf8')).projects;
+  expect(result.data.games.map(g => g.id)).toEqual([...manifest.games, ...projects].map(g => g.id));
   for (const game of result.data.games) {
-    expect(Object.keys(game).sort()).toEqual(['id', 'title', 'summary', 'status', 'previewUrl', 'screenshotUrl', 'videoUrl', 'testCommand', 'manualChecklist', 'nextIdeas'].sort());
-    expect(game.previewUrl).toBe(`https://game-preview.ninjaprivacy.org/games/${game.id}/`);
-    for (const field of ['screenshotUrl', 'videoUrl']) if (game[field]) {
+    expect(Object.keys(game).sort()).toEqual(['id', 'title', 'summary', 'status', 'projectType', 'engine', 'target', 'downloadUrl', 'previewUrl', 'screenshotUrl', 'videoUrl', 'testCommand', 'manualChecklist', 'nextIdeas'].sort());
+    expect(game.previewUrl).toBe(game.projectType === 'native' ? null : `https://game-preview.ninjaprivacy.org/games/${game.id}/`);
+    for (const field of ['screenshotUrl', 'videoUrl', 'downloadUrl']) if (game[field]) {
       const url = new URL(game[field]);
       expect(url.origin).toBe('https://game-preview.ninjaprivacy.org');
       expect((await fs.stat(path.join(repoRoot, url.pathname))).isFile()).toBe(true);

@@ -1,0 +1,10 @@
+{
+  "games": [
+    { "id": "snowdown", "title": "High Noon, Low Temperatures", "files": ["index.html", "styles.css", "game.js"] },
+    { "id": "rift-runner", "title": "RIFT//RUNNER", "files": ["index.html", "styles.css", "game.js", "audio.js", "renderer.js"] },
+    { "id": "fps-gauntlet", "title": "Neon Breach", "files": ["index.html", "styles.css", "game.js"] },
+    { "id": "void-garden", "title": "Void Garden", "files": ["index.html", "styles.css", "game.js"] },
+    { "id": "signal-salvage", "title": "Signal Salvage", "files": ["index.html", "styles.css", "game.js"] }
+  ],
+  "runtime": ["node_modules/three/build/three.module.js", "node_modules/three/build/three.core.js"]
+}

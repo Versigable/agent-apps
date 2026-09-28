@@ -2,11 +2,11 @@
   "generator": "scripts/check_repo_brain.py",
   "manifest": {
     "path": "docs/brain/manifest.json",
-    "sha256": "6db788e88e4e8ccf820cc726d633c2f5b47face151ed57220988d1fd750010a1"
+    "sha256": "2d7795901cc80116417469c81bb5d2c2c97f4c114e24979fd9746201154b10be"
   },
   "pages": [
     {
-      "content_sha256": "0d8233473036908cc7dc8a4efb0ec3edac9c81e4cd28bc6da2bab225c1f0da3d",
+      "content_sha256": "74edff4e3eab33bba19f28ac3af7e387cc65207e024f287dddef3ce1a910095d",
       "evidence": [
         {
           "path": "package.json",
@@ -28,11 +28,12 @@
       "owner": "unknown",
       "path": "docs/brain/index.md",
       "source_revision": "a3da91f69d24c14f6612b2a1fcdae7d2abb4f1b4",
-      "status": "verified",
+      "stale_reason": "Baseline dispatcher, consumer and test evidence predates the deployed editable operator and published ZIP integration. Current deployment receipts are linked separately; they do not semantically reverify this historical source map. Retain baseline revision/date/hashes until source and incoming consumers are reinspected. Semantic review owner unknown; parent owns release/CI provenance.",
+      "status": "stale",
       "verified_on": "2026-09-24"
     },
     {
-      "content_sha256": "4208f6fcc8b5e77a4b37c9b64a0f694add0f151fe656053459d48700d2f2cabf",
+      "content_sha256": "8ffc64e2075ab35415f1c0293dc658bb979aa913fe0eeb86452f326293799465",
       "evidence": [
         {
           "path": "apps/app.js",
@@ -82,11 +83,12 @@
       "owner": "unknown",
       "path": "docs/brain/preview-consumers.md",
       "source_revision": "a3da91f69d24c14f6612b2a1fcdae7d2abb4f1b4",
-      "status": "verified",
+      "stale_reason": "Baseline dispatcher, consumer and test evidence predates the deployed editable operator and published ZIP integration. Current deployment receipts are linked separately; they do not semantically reverify this historical source map. Retain baseline revision/date/hashes until source and incoming consumers are reinspected. Semantic review owner unknown; parent owns release/CI provenance.",
+      "status": "stale",
       "verified_on": "2026-09-24"
     },
     {
-      "content_sha256": "5d39234f2afaca7acb2e9d1540154a33d90713b598b9f94fc8e19577152e5843",
+      "content_sha256": "7de148e2af3a0b4b16568732eadcbc44f806c40ebecb5146c3a10a72985a497a",
       "evidence": [
         {
           "path": "package.json",
@@ -108,7 +110,8 @@
       "owner": "unknown",
       "path": "docs/brain/preview-routing.md",
       "source_revision": "a3da91f69d24c14f6612b2a1fcdae7d2abb4f1b4",
-      "status": "verified",
+      "stale_reason": "Baseline dispatcher, consumer and test evidence predates the deployed editable operator and published ZIP integration. Current deployment receipts are linked separately; they do not semantically reverify this historical source map. Retain baseline revision/date/hashes until source and incoming consumers are reinspected. Semantic review owner unknown; parent owns release/CI provenance.",
+      "status": "stale",
       "verified_on": "2026-09-24"
     }
   ],

@@ -1,0 +1,11 @@
+# Public immutable ZIP download source plan
+
+Scope: standalone public player only; parent owns review/deployment. No production builds, operator edits, activation, commits, or scoped editing enablement. Existing approved publisher and store remain unchanged.
+
+Navigation questions: where does an immutable native attachment resolve? How can an operator deliberately export one publisher receipt without exposing the private store? Source owners are playable-service, stage-playable, a new builtins-only download reader and offline export helper. Dedicated documentation: ../public-downloads.md. Shared brain maps are explicitly stale for this change pending concurrent N1/parent integration; do not edit their files.
+
+Design: registry `downloads` contains explicit validated publisher records (no paths). `/downloads/{game}/{version}/{platform}.zip` resolves only those records. Separate exported bytes reside under release/downloads, never public static root or original private store. Offline exporter checks selected receipt against bounded metadata and pinned ZIP digest then copies streams to an exclusive destination. Stager accepts only that deliberate export, validates copies and stages the runtime reader. Runtime only imports builtins and the read-only reader, accepts GET/HEAD, hashes the same no-follow fd before bounded streaming, rejects links/nonregular files and changed stats, and uses safe attachment/nosniff/private immutable headers. Owner must root-own and seal the release outside home; OS isolation remains mandatory. No claim against privileged concurrent writers.
+
+TDD sequence: (1) synthetic real publish → explicit export → stage → ephemeral HTTP → digest roundtrip (>32 MiB ZIP); (2) malicious routes/methods/registry/metadata/files and corruption regression; (3) source template /opt isolation regression. Each changed behavior must have recorded RED then GREEN. Existing static/stage/store suites run independently on ephemeral ports; no 4398 use.
+
+Acceptance: exact source file hashes/diff and logs in external evidence directory, dedicated command/contract/troubleshooting docs, checkpoint with deployment gates and synthetic labeling. Independent review and genuine artifact/public-origin digest remain parent gates.

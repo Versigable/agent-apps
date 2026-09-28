@@ -58,12 +58,30 @@ export async function loadGames(repoRoot) {
   const manifest = JSON.parse(await fs.readFile(path.join(repoRoot, 'games/manifest.json'), 'utf8'));
   const text = value => typeof value === 'string' ? value : '';
   const strings = value => Array.isArray(value) ? value.filter(item => typeof item === 'string') : [];
-  return Promise.all((Array.isArray(manifest.games) ? manifest.games : []).filter(game => game && typeof game.id === 'string').map(async game => ({
+  let projects = [];
+  try {
+    const catalog = JSON.parse(await fs.readFile(path.join(repoRoot, 'apps/kanban/dev-projects.json'), 'utf8'));
+    if (!Array.isArray(catalog.projects)) throw new Error('Invalid development project catalog');
+    projects = catalog.projects;
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  const browserGames = (Array.isArray(manifest.games) ? manifest.games : []).filter(game => game && typeof game.id === 'string');
+  const ids = new Set(browserGames.map(game => game.id));
+  for (const project of projects) {
+    if (!project || typeof project.id !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(project.id)
+      || ids.has(project.id) || project.projectType !== 'native' || !text(project.title).trim()
+      || !text(project.engine).trim() || !text(project.target).trim()) throw new Error('Invalid development project catalog entry');
+    ids.add(project.id);
+  }
+  return Promise.all([...browserGames.map(game => ({ ...game, projectType: 'browser' })), ...projects].map(async game => ({
     id: game.id,
     title: text(game.title),
     summary: text(game.summary),
     status: text(game.status),
-    previewUrl: await resolveGameUrl(game.previewUrl || game.previewPath || game.playUrl, repoRoot),
+    projectType: game.projectType,
+    engine: text(game.engine),
+    target: game.projectType === 'native' ? text(game.target) : 'Browser',
+    previewUrl: game.projectType === 'native' ? null : await resolveGameUrl(game.previewUrl || game.previewPath || game.playUrl, repoRoot),
+    downloadUrl: game.projectType === 'native' ? await resolveGameUrl(game.downloadUrl, repoRoot, { evidence: true }) : null,
     screenshotUrl: await resolveGameUrl(game.artifacts?.latestScreenshot, repoRoot, { evidence: true }) || await resolveGameUrl(game.screenshot, repoRoot, { evidence: true }),
     videoUrl: await resolveGameUrl(game.artifacts?.latestVideo, repoRoot, { evidence: true }),
     testCommand: text(game.testCommand),

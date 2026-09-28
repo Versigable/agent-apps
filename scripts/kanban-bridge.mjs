@@ -1,23 +1,15 @@
-#!/usr/bin/env node
+import { parseBoolean, safeSlug, safeTaskId, optionalText, runHermesRaw, runHermesKanban } from './kanban-commands.mjs';
+import { writeTask, createTask, writeLink } from './kanban-writes.mjs';
+import { readTaskSnapshot, readTaskHistory } from './kanban-operations.mjs';
 import fs from 'node:fs/promises';
-import { loadGames, parseGameDev, encodeGameDev, validateGameDev } from './kanban-games.mjs';
-import { CAPTURE_BODY_MAX } from './kanban-capture.mjs';
-import { validateEvidence, encodeEvidence, parseEvidence, sameEvidencePayload, withEvidenceLock, evidenceError } from './kanban-evidence.mjs';
+import { loadGames, parseGameDev } from './kanban-games.mjs';
+import { parseEvidence } from './kanban-evidence.mjs';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
 
 const BOARD_COLUMNS = ['triage', 'todo', 'scheduled', 'ready', 'running', 'review', 'blocked', 'done'];
 const DEFAULT_FIXTURE_PATH = path.join('apps', 'kanban', 'fixtures', 'default-board.json');
 const DEFAULT_ROSTER_PATH = path.join('apps', 'kanban', 'operator-roster.json');
-const WRITE_AUTHOR = process.env.KANBAN_WRITE_AUTHOR || 'app-preview';
-
-function parseBoolean(value, defaultValue = true) {
-  if (value === undefined || value === null || value === '') return defaultValue;
-  return !['0', 'false', 'no', 'off'].includes(String(value).toLowerCase());
-}
 
 function safeBoardName(value) {
   const board = value || process.env.KANBAN_BOARD || 'default';
@@ -27,65 +19,6 @@ function safeBoardName(value) {
     throw error;
   }
   return board;
-}
-
-function safeSlug(value, field = 'slug') {
-  const slug = String(value || '').trim();
-  if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(slug)) {
-    const error = new Error(`invalid ${field}`);
-    error.statusCode = 400;
-    throw error;
-  }
-  return slug;
-}
-
-function optionalSlug(value, field) {
-  if (value === undefined || value === null || value === '') return null;
-  return safeSlug(value, field);
-}
-
-function safeTaskId(value) {
-  const id = String(value || '');
-  if (!/^[a-zA-Z0-9_.:_-]{1,160}$/.test(id)) {
-    const error = new Error('invalid task id');
-    error.statusCode = 400;
-    throw error;
-  }
-  return id;
-}
-
-function cleanText(value, maxLength, field) {
-  const text = String(value || '').trim();
-  if (!text) {
-    const error = new Error(`${field} is required`);
-    error.statusCode = 400;
-    throw error;
-  }
-  if (text.length > maxLength) {
-    const error = new Error(`${field} is too long`);
-    error.statusCode = 400;
-    throw error;
-  }
-  return text;
-}
-
-function optionalText(value, maxLength, field) {
-  if (value === undefined || value === null || value === '') return null;
-  return cleanText(value, maxLength, field);
-}
-
-function jsonObject(value, field) {
-  if (value === undefined || value === null || value === '') return null;
-  if (typeof value === 'object' && !Array.isArray(value)) return JSON.stringify(value);
-  try {
-    const parsed = JSON.parse(String(value));
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error('not object');
-    return JSON.stringify(parsed);
-  } catch {
-    const error = new Error(`${field} must be a JSON object`);
-    error.statusCode = 400;
-    throw error;
-  }
 }
 
 function resolveMode() {
@@ -495,27 +428,8 @@ async function fixtureDetail(repoRoot, board, taskId) {
   };
 }
 
-function hermesBin() {
-  return process.env.HERMES_BIN || path.join(process.env.HOME || '/home/merquery', '.local', 'bin', 'hermes');
-}
-
-async function runHermesRaw(args, options = {}) {
-  const { stdout } = await execFileAsync(hermesBin(), args, {
-    timeout: options.timeout || 10_000,
-    maxBuffer: options.maxBuffer || 1024 * 1024,
-    env: { ...process.env }
-  });
-  return stdout;
-}
-
-async function runHermesKanban(board, args, options = {}) {
-  return runHermesRaw(['kanban', '--board', board, ...args], options);
-}
-
 async function liveBoard(repoRoot, board) {
-  const [result, roster] = await Promise.all([execFileAsync(process.env.KANBAN_PYTHON || 'python3', [path.join(repoRoot, 'scripts/kanban-readonly.py'), board], { timeout: 10_000, maxBuffer: 8 * 1024 * 1024, env: { ...process.env } }), readOperatorRoster(repoRoot)]);
-  const stdout = result.stdout;
-  const tasks = JSON.parse(stdout || '[]');
+  const [tasks, roster] = await Promise.all([readTaskSnapshot(repoRoot, board), readOperatorRoster(repoRoot)]);
   const payload = emptyBoard(board, 'live');
   const tenants = new Set(roster.tenants || []);
   const assignees = new Set(rosterAssigneeItems(roster).map((item) => item.name));
@@ -542,8 +456,7 @@ async function loadBoard(repoRoot, board) {
 function sendJson(res, status, payload) {
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-    'access-control-allow-origin': '*'
+    'cache-control': 'no-store'
   });
   res.end(JSON.stringify(payload, null, 2));
 }
@@ -573,73 +486,6 @@ function requireWritable(mode) {
   }
 }
 
-function parseCreatedTask(stdout) {
-  try {
-    const parsed = JSON.parse(stdout || '{}');
-    return parsed.task || parsed;
-  } catch {
-    return { raw: stdout.trim() };
-  }
-}
-
-async function createTriageTask(board, payload, repoRoot) {
-  const title = cleanText(payload.title, 180, 'title');
-  let body = optionalText(payload.body, 8000, 'body') || '';
-  if (body.includes('```game-dev')) {
-    const error = new Error('body must not contain reserved game-dev metadata; use game_dev'); error.statusCode = 400; throw error;
-  }
-  if (Object.hasOwn(payload, 'game_dev')) {
-    const metadata = validateGameDev(payload.game_dev, await loadGames(repoRoot));
-    if (payload.body !== undefined && typeof payload.body !== 'string') {
-      const error = new Error('body must be a string'); error.statusCode = 400; throw error;
-    }
-    body = encodeGameDev(payload.body || '', metadata);
-    if (body.length > (metadata.capture ? CAPTURE_BODY_MAX : 8000) || Buffer.byteLength(body, 'utf8') > (metadata.capture ? CAPTURE_BODY_MAX : 120000)) {
-      const error = new Error('body including game-dev metadata is too long'); error.statusCode = 400; throw error;
-    }
-  }
-  const assignee = optionalText(payload.assignee, 80, 'assignee');
-  const tenant = optionalText(payload.tenant, 80, 'tenant');
-  const workspace = optionalText(payload.workspace, 256, 'workspace') || 'scratch';
-  if (!/^(scratch|worktree|dir:[^\0]+)$/.test(workspace)) {
-    const error = new Error('workspace must be scratch, worktree, or dir:<path>');
-    error.statusCode = 400;
-    throw error;
-  }
-  const maxRuntime = optionalText(payload.max_runtime || payload.maxRuntime, 40, 'max_runtime');
-  const idempotencyKey = optionalText(payload.idempotency_key || payload.idempotencyKey, 160, 'idempotency_key');
-  if (payload.game_dev?.capture && (!parseBoolean(payload.triage, true) || assignee || !idempotencyKey)) {
-    const error = new Error('playtest capture requires unassigned triage and an idempotency_key'); error.statusCode = 400; throw error;
-  }
-  const parents = Array.isArray(payload.parents) ? payload.parents.map((item) => safeTaskId(item)) : optionalText(payload.parent || payload.parents, 2000, 'parents')?.split(/[\s,]+/).filter(Boolean).map((item) => safeTaskId(item)) || [];
-  const skills = Array.isArray(payload.skills) ? payload.skills.map((item) => optionalSlug(item, 'skill')).filter(Boolean) : optionalText(payload.skills, 2000, 'skills')?.split(/[\s,]+/).filter(Boolean).map((item) => optionalSlug(item, 'skill')) || [];
-  const priority = Number(payload.priority || 0);
-  if (!Number.isFinite(priority) || priority < -1000 || priority > 1000) {
-    const error = new Error('priority must be between -1000 and 1000');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const args = [
-    'create', title,
-    '--body', body,
-    '--priority', String(Math.trunc(priority)),
-    '--workspace', workspace,
-    '--created-by', WRITE_AUTHOR,
-    '--json'
-  ];
-  if (parseBoolean(payload.triage, true)) args.push('--triage');
-  if (assignee) args.push('--assignee', assignee);
-  if (tenant) args.push('--tenant', tenant);
-  if (idempotencyKey) args.push('--idempotency-key', idempotencyKey);
-  if (maxRuntime) args.push('--max-runtime', maxRuntime);
-  for (const parent of parents) args.push('--parent', parent);
-  for (const skill of skills) args.push('--skill', skill);
-  const stdout = await runHermesKanban(board, args);
-  const created = parseCreatedTask(stdout);
-  return Object.hasOwn(payload, 'game_dev') ? { ...created, game_dev: parseGameDev(created.body) } : created;
-}
-
 async function createBoard(payload) {
   const slug = safeSlug(payload.slug);
   const args = ['kanban', 'boards', 'create', slug];
@@ -655,112 +501,6 @@ async function createBoard(payload) {
   return { slug, name: name || slug, description: description || '', icon: icon || '', color: color || '' };
 }
 
-async function commentTask(board, taskId, payload) {
-  const text = cleanText(payload.text, 8000, 'comment');
-  const author = optionalText(payload.author, 80, 'author') || WRITE_AUTHOR;
-  await runHermesKanban(board, ['comment', taskId, text, '--author', author]);
-  return { id: taskId, commented: true };
-}
-
-async function appendEvidence(repoRoot, board, taskId, input) {
-  const payload = validateEvidence(input);
-  return withEvidenceLock(`${board}:${taskId}`, async () => {
-    const detail = await loadTaskDetail(repoRoot, board, taskId);
-    if (!detail) throw evidenceError('task not found', 404);
-    const gameId = detail.task.game_dev?.game_id;
-    if (!gameId) throw evidenceError('evidence requires a game task');
-    const existing = detail.build_evidence.filter(record => record.id === payload.id);
-    if (existing.length) {
-      if (existing.some(record => !sameEvidencePayload(record, payload))) throw evidenceError('evidence id already has a different payload', 409);
-      return existing[0];
-    }
-    const record = { ...payload, version: 1, source: 'operator-reported', recorded_at: new Date().toISOString(), game_id: gameId };
-    const body = encodeEvidence(record);
-    await runHermesKanban(board, ['comment', taskId, body, '--author', WRITE_AUTHOR]);
-    const persisted = await loadTaskDetail(repoRoot, board, taskId);
-    if (!persisted?.comments.some(comment => (comment.body ?? comment.text) === body) || !persisted.build_evidence.some(item => JSON.stringify(item) === JSON.stringify(record))) {
-      throw evidenceError('evidence write could not be verified by readback', 502);
-    }
-    return record;
-  });
-}
-
-async function runTaskAction(board, taskId, payload) {
-  const action = String(payload.action || '').toLowerCase();
-  if (action === 'assign') {
-    const assignee = optionalText(payload.assignee, 80, 'assignee') || 'none';
-    await runHermesKanban(board, ['assign', taskId, assignee]);
-    return { id: taskId, action, assignee };
-  }
-  if (action === 'block') {
-    const reason = optionalText(payload.reason, 2000, 'reason') || 'Blocked from app-preview';
-    await runHermesKanban(board, ['block', taskId, reason]);
-    return { id: taskId, action, reason };
-  }
-  if (action === 'unblock') {
-    await runHermesKanban(board, ['unblock', taskId]);
-    return { id: taskId, action };
-  }
-  if (action === 'complete') {
-    const result = optionalText(payload.result, 8000, 'result') || 'Completed from app-preview';
-    const summary = optionalText(payload.summary, 8000, 'summary') || result;
-    const metadata = jsonObject(payload.metadata, 'metadata');
-    const args = ['complete', taskId, '--result', result, '--summary', summary];
-    if (metadata) args.push('--metadata', metadata);
-    await runHermesKanban(board, args);
-    return { id: taskId, action, result, summary };
-  }
-  if (action === 'archive') {
-    await runHermesKanban(board, ['archive', taskId]);
-    return { id: taskId, action };
-  }
-  if (action === 'reclaim') {
-    const reason = optionalText(payload.reason, 2000, 'reason') || 'Reclaimed from app-preview';
-    await runHermesKanban(board, ['reclaim', '--reason', reason, taskId]);
-    return { id: taskId, action, reason };
-  }
-  if (action === 'reassign') {
-    const assignee = optionalText(payload.assignee, 80, 'assignee') || 'none';
-    const reason = optionalText(payload.reason, 2000, 'reason');
-    const args = ['reassign'];
-    if (parseBoolean(payload.reclaim, false)) args.push('--reclaim');
-    if (reason) args.push('--reason', reason);
-    args.push(taskId, assignee);
-    await runHermesKanban(board, args);
-    return { id: taskId, action, assignee, reclaim: parseBoolean(payload.reclaim, false) };
-  }
-  if (action === 'edit') {
-    const result = cleanText(payload.result, 8000, 'result');
-    const summary = optionalText(payload.summary, 8000, 'summary');
-    const metadata = jsonObject(payload.metadata, 'metadata');
-    const args = ['edit', taskId, '--result', result];
-    if (summary) args.push('--summary', summary);
-    if (metadata) args.push('--metadata', metadata);
-    await runHermesKanban(board, args);
-    return { id: taskId, action };
-  }
-
-  const error = new Error('unsupported task action');
-  error.statusCode = 400;
-  throw error;
-}
-
-async function runLinkAction(board, payload) {
-  const action = String(payload.action || 'link').toLowerCase();
-  const parentId = safeTaskId(payload.parent_id || payload.parentId);
-  const childId = safeTaskId(payload.child_id || payload.childId);
-  if (action === 'link') {
-    await runHermesKanban(board, ['link', parentId, childId]);
-    return { action, parent_id: parentId, child_id: childId };
-  }
-  if (action === 'unlink') {
-    await runHermesKanban(board, ['unlink', parentId, childId]);
-    return { action, parent_id: parentId, child_id: childId };
-  }
-  const error = new Error('unsupported link action');
-  error.statusCode = 400;
-  throw error;
-}
 
 async function loadTaskDetail(repoRoot, board, taskId) {
   const mode = resolveMode();
@@ -768,6 +508,13 @@ async function loadTaskDetail(repoRoot, board, taskId) {
   try {
     const stdout = await runHermesKanban(board, ['show', taskId, '--json']);
     const parsed = JSON.parse(stdout || '{}');
+    // Installed show omits history IDs. Only original persisted rows can prove
+    // a new mutation; never synthesize IDs from timestamps or array positions.
+    const persisted = await readTaskHistory(repoRoot, board, taskId);
+    if (!persisted) return null;
+    parsed.comments = persisted.comments;
+    parsed.events = persisted.events;
+    parsed.dependencies = persisted.dependencies;
     const task = publicTask({ ...(parsed.task || parsed), latest_summary: parsed.latest_summary || parsed.task?.latest_summary });
     return {
       board,
@@ -885,14 +632,14 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
     if (pathName === '/api/kanban/tasks' && req.method === 'POST') {
       const payload = await readRequestJson(req);
       requireWritable(mode);
-      const task = await createTriageTask(board, payload, repoRoot);
+      const task = await createTask({repoRoot,board,readDetail:id=>loadTaskDetail(repoRoot,board,id)},payload);
       return sendJson(res, 201, { ok: true, board, readOnly: false, task });
     }
 
     if (pathName === '/api/kanban/links' && req.method === 'POST') {
       const payload = await readRequestJson(req);
       requireWritable(mode);
-      const result = await runLinkAction(board, payload);
+      const result = await writeLink({repoRoot,board,readDetail:id=>loadTaskDetail(repoRoot,board,id)},payload);
       return sendJson(res, 200, { ok: true, board, ...result });
     }
 
@@ -931,7 +678,7 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
     if (evidenceMatch && req.method === 'POST') {
       requireWritable(mode);
       const payload = await readRequestJson(req);
-      const evidence = await appendEvidence(repoRoot, board, safeTaskId(evidenceMatch[1]), payload);
+      const evidence = await writeTask({repoRoot,board,readDetail:id=>loadTaskDetail(repoRoot,board,id)},'evidence',safeTaskId(evidenceMatch[1]),payload);
       return sendJson(res, 200, { evidence });
     }
 
@@ -939,7 +686,7 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
     if (commentMatch && req.method === 'POST') {
       const payload = await readRequestJson(req);
       requireWritable(mode);
-      const result = await commentTask(board, safeTaskId(commentMatch[1]), payload);
+      const result = await writeTask({repoRoot,board,readDetail: id=>loadTaskDetail(repoRoot,board,id)}, 'comment', safeTaskId(commentMatch[1]), payload);
       return sendJson(res, 200, { ok: true, board, ...result });
     }
 
@@ -947,7 +694,7 @@ export async function handleKanbanRequest(req, res, { repoRoot }) {
     if (actionMatch && req.method === 'POST') {
       const payload = await readRequestJson(req);
       requireWritable(mode);
-      const result = await runTaskAction(board, safeTaskId(actionMatch[1]), payload);
+      const result = await writeTask({repoRoot,board,readDetail:id=>loadTaskDetail(repoRoot,board,id)},'action',safeTaskId(actionMatch[1]),payload);
       return sendJson(res, 200, { ok: true, board, ...result });
     }
 

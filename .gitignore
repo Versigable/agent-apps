@@ -8,4 +8,5 @@ node_modules/
 games/artifacts/test-results/
 games/artifacts/playwright-report/
 games/artifacts/videos/
+games/artifacts/releases/
 games/artifacts/latest-run.json

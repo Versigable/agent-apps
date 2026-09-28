@@ -1,0 +1,19 @@
+{
+  "projects": [
+    {
+      "id": "unity-pipeline-fixture",
+      "title": "Unity Pipeline Fixture",
+      "projectType": "native",
+      "engine": "Unity",
+      "target": "Linux x86_64 graphical",
+      "status": "Existing GDP-002 kit baseline — not new pilot execution",
+      "summary": "Existing GDP-002 kit baseline (gdp-002-kit-v0.1-linux), not a browser-playable game or new pilot execution. Linux x86_64 graphical fixture auto-exits after 12 seconds; audio and headless unsupported. Screenshot is from prior GDP-002 execution. Registration does not authorize Unity or player execution.",
+      "downloadUrl": "https://game-preview.ninjaprivacy.org/games/artifacts/releases/unity-pipeline-fixture/ec80c1b05af03a87bce424ed227c98f7954a6938731b427b9de7bd59b746a296/unity-fixture-linux.tar.gz",
+      "screenshot": "https://game-preview.ninjaprivacy.org/games/artifacts/releases/unity-pipeline-fixture/ec80c1b05af03a87bce424ed227c98f7954a6938731b427b9de7bd59b746a296/player-1.png",
+      "manualChecklist": [
+        "Confirm explicit execution approval before running Unity or a native player.",
+        "Record the exact build and target before testing; the linked kit and screenshot are prior GDP-002 references, not a new acceptance result."
+      ]
+    }
+  ]
+}

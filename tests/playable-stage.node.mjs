@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+
+test('staging copies only reviewed assets and refuses existing destinations', async t => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'stage-playable-'));
+  t.after(() => fs.rm(tmp, { recursive: true, force: true }));
+  const root = path.join(tmp, 'source');
+  await fs.mkdir(path.join(root, 'games/demo'), { recursive: true });
+  await fs.writeFile(path.join(root, 'games/demo/index.html'), 'PUBLIC');
+  await fs.writeFile(path.join(root, 'games/demo/private.txt'), 'PRIVATE');
+  const moduleUrl = new URL('../scripts/stage-playable.mjs', import.meta.url);
+  assert.ok(await fs.stat(moduleUrl).catch(() => false), 'allowlisted staging exporter must exist');
+  const { stagePlayable } = await import(moduleUrl);
+  const registry = { games: [{ id: 'demo', title: 'Demo', files: ['index.html'] }], runtime: [] };
+  const dest = path.join(tmp, 'release');
+  await stagePlayable({ root, registry, destination: dest });
+  assert.equal(await fs.readFile(path.join(dest, 'public/games/demo/index.html'), 'utf8'), 'PUBLIC');
+  assert.deepEqual(await fs.readdir(path.join(dest, 'public/games/demo')), ['index.html']);
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(dest, 'registry.json'))), registry);
+  assert.ok((await fs.stat(path.join(dest, 'playable-service.mjs'))).isFile());
+  await assert.rejects(stagePlayable({ root, registry, destination: dest }));
+  await fs.unlink(path.join(root, 'games/demo/index.html'));
+  await fs.symlink(path.join(root, 'games/demo/private.txt'), path.join(root, 'games/demo/index.html'));
+  const bad = path.join(tmp, 'bad');
+  await assert.rejects(stagePlayable({ root, registry, destination: bad }));
+  assert.equal(await fs.stat(bad).catch(() => null), null);
+});

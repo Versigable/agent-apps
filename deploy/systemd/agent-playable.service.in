@@ -1,0 +1,46 @@
+# TEMPLATE ONLY: not enabled or referenced by existing installers.
+# Owner must fill @NODE@, @RELEASE@, @EXISTING_BIND@, @ARTIFACT_STORE@.
+[Unit]
+Description=Public allowlisted playable games (no operator capabilities)
+After=network.target
+
+[Service]
+Type=simple
+User=agent-playable
+Group=agent-playable
+WorkingDirectory=/srv/agent-playable/releases/@RELEASE@
+ExecStart=@NODE@ /srv/agent-playable/releases/@RELEASE@/playable-service.mjs
+Environment=HOME=/nonexistent
+Environment=PLAYABLE_ROOT=/srv/agent-playable/releases/@RELEASE@/public
+Environment=PLAYABLE_REGISTRY=/srv/agent-playable/releases/@RELEASE@/registry.json
+Environment=PLAYABLE_DOWNLOAD_ROOT=/srv/agent-playable/releases/@RELEASE@/downloads
+Environment=PLAYABLE_HOST=@EXISTING_BIND@
+Environment=PLAYABLE_PORT=4173
+UnsetEnvironment=NODE_OPTIONS NODE_PATH HERMES_HOME HERMES_KANBAN_HOME HERMES_KANBAN_DB GAME_BUILD_STORE
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+InaccessiblePaths=/home /root /run/user /opt @ARTIFACT_STORE@
+ReadOnlyPaths=/srv/agent-playable
+TasksMax=64
+MemoryMax=512M
+LimitNOFILE=512
+
+[Install]
+WantedBy=multi-user.target

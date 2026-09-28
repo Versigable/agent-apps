@@ -1,4 +1,6 @@
 import { createGameDev } from './game-dev.js';
+import { createTransport } from './transport.js';
+const transport = window.kanbanTransport || createTransport();
 import { createPlaytestCapture } from './playtest-capture.js';
 import { renderEvidence } from './build-evidence.js';
 const boardEl = document.querySelector('#board');
@@ -35,7 +37,7 @@ const summaryEls = {
 
 
 let currentBoard = null;
-let activeBoard = new URLSearchParams(window.location.search).get('board') || 'default';
+let activeBoard = transport.scoped ? 'default' : new URLSearchParams(window.location.search).get('board') || 'default';
 let currentBoards = [];
 let currentAssignees = [];
 let currentExecution = null;
@@ -43,8 +45,8 @@ let lastRefreshDate = null;
 let activeDrawerTaskId = null;
 let refreshGeneration = 0;
 let drawerGeneration = 0;
-const gameDev = createGameDev({ onViewChange: () => refreshBoard(), onFilterChange: () => { if (currentBoard) renderFilteredBoard(); updateCreateFormState(); } });
-const playtestCapture = createPlaytestCapture({ gameDev, captureView, writesEnabled, postJson, refreshBoard });
+const gameDev = createGameDev({ transport, onViewChange: () => refreshBoard(), onGameChange: () => refreshBoard(), onFilterChange: () => { if (currentBoard) renderFilteredBoard(); updateCreateFormState(); } });
+const playtestCapture = createPlaytestCapture({ gameDev, captureView, writesEnabled: () => writesEnabled('capture'), postJson, refreshBoard });
 
 function text(value, fallback = '—') {
   if (value === undefined || value === null || value === '') return fallback;
@@ -68,8 +70,9 @@ function allTasks(board = currentBoard) {
   return board?.columns?.flatMap((column) => column.tasks || []) || [];
 }
 
-function writesEnabled() {
-  return Boolean(currentBoard && !currentBoard.readOnly && currentBoard.writesEnabled);
+function writesEnabled(action) {
+  return Boolean(currentBoard && !currentBoard.readOnly && currentBoard.writesEnabled
+    && (!transport.scoped || !action || currentBoard.capabilities?.writes?.includes(action)));
 }
 
 function executionEnabled() {
@@ -102,10 +105,7 @@ function setMessage(el, message, isError = false) {
 }
 
 async function requestJson(url, options = {}) {
-  const response = await fetch(url, { headers: { accept: 'application/json', ...(options.headers || {}) }, ...options });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Request failed: ${response.status}`);
-  return data;
+  return transport.request(url, options);
 }
 
 async function postJson(url, payload) {
@@ -271,10 +271,33 @@ function formField(label, name, options = {}) {
   return wrap;
 }
 
+const createDrafts = new Map();
+let createDraftKey, createRevision = 0;
+function rememberCreateDraft() {
+  createRevision++;
+  if (!transport.scoped || !createDraftKey) return;
+  const previous = createDrafts.get(createDraftKey) || {};
+  previous.values = Object.fromEntries([...createForm.elements].filter(field => field.name).map(field => [field.name, field.type === 'checkbox' ? field.checked : field.value]));
+  createDrafts.set(createDraftKey, previous);
+}
+createForm.addEventListener('input', rememberCreateDraft);
+createForm.addEventListener('change', rememberCreateDraft);
 function updateCreateFormState() {
+  if (transport.scoped) {
+    const key = gameDev.selected()?.id;
+    if (key !== createDraftKey) {
+      rememberCreateDraft(); createDraftKey = key; createRevision++;
+      createForm.reset();
+      for (const [name, value] of Object.entries(createDrafts.get(key)?.values || {})) {
+        const field = createForm.elements[name];
+        if (field) field.type === 'checkbox' ? field.checked = value : field.value = value;
+      }
+    }
+  }
   playtestCapture.sync();
-  const enabled = writesEnabled();
+  const enabled = writesEnabled('create-triage');
   for (const field of createForm.elements) field.disabled = !enabled;
+  if (transport.scoped) { createForm.elements.triage.checked = true; createForm.elements.triage.disabled = true; }
   const gameFields = document.querySelector('#game-task-fields');
   gameFields.hidden = !gameDev.active;
   gameFields.disabled = !enabled || !gameDev.active || !gameDev.selected();
@@ -282,7 +305,7 @@ function updateCreateFormState() {
   submit.textContent = gameDev.active ? 'Create game task' : 'Create triage card';
   submit.disabled = !enabled || (gameDev.active && !gameDev.selected());
   for (const field of createBoardForm.elements) field.disabled = !enabled;
-  setMessage(createStatus, enabled ? 'Writes enabled: create triage or direct todo cards with workspace, parents, runtime, skills, and idempotency metadata.' : 'Read-only mode: creation is disabled.');
+  setMessage(createStatus, enabled ? (transport.scoped ? 'Scoped creation: triage only. Assignment does not dispatch a worker.' : 'Writes enabled: create triage or direct todo cards with workspace, parents, runtime, skills, and idempotency metadata.') : 'Read-only mode: creation is disabled.');
   updateExecutionFormState();
 }
 
@@ -352,6 +375,7 @@ async function handleCreate(event) {
   event.preventDefault();
   const view = captureView();
   const selectionIsCurrent = gameDev.captureSelection();
+  const editRevision = createRevision;
   const form = new FormData(createForm);
   const payload = {
     title: form.get('title'),
@@ -364,7 +388,7 @@ async function handleCreate(event) {
     skills: splitList(form.get('skills')),
     max_runtime: form.get('max_runtime'),
     idempotency_key: form.get('idempotency_key'),
-    triage: form.get('triage') === 'on'
+    triage: transport.scoped || form.get('triage') === 'on'
   };
   if (!writesEnabled()) return;
   if (gameDev.active) {
@@ -380,15 +404,16 @@ async function handleCreate(event) {
   try {
     setMessage(createStatus, `Creating card on ${activeBoard}…`);
     await postJson(`/api/kanban/tasks?${boardParam(view.board)}`, payload);
-    if (!view.isCurrent() || !selectionIsCurrent()) return;
+    if (!view.isCurrent() || !selectionIsCurrent() || editRevision !== createRevision) return;
     createForm.reset();
     createForm.elements.priority.value = '0';
     createForm.elements.workspace.value = 'scratch';
     createForm.elements.triage.checked = true;
+    rememberCreateDraft();
     setMessage(createStatus, 'Card created. Refreshing board…');
     await refreshBoard();
   } catch (error) {
-    if (!view.isCurrent() || !selectionIsCurrent()) return;
+    if (!view.isCurrent() || !selectionIsCurrent() || editRevision !== createRevision) return;
     setMessage(createStatus, error.message, true);
   }
 }
@@ -458,8 +483,8 @@ function renderDetailPanel(detail) {
     line('Priority', Number(task.priority || 0)),
     line('Created', formatDate(task.created_at)),
     line('Updated', formatDate(task.updated_at)),
-    line('Parents', (detail.dependencies?.parents || []).join(', ') || 'none'),
-    line('Children', (detail.dependencies?.children || []).join(', ') || 'none')
+    line('Parents', (detail.dependencies?.parents || []).map(item => typeof item === 'string' ? item : item.id).join(', ') || 'none'),
+    line('Children', (detail.dependencies?.children || []).map(item => typeof item === 'string' ? item : item.id).join(', ') || 'none')
   );
   const body = document.createElement('section');
   body.className = 'drawer-section';
@@ -477,7 +502,7 @@ function renderCommentsEventsPanel(detail) {
   panel.append(renderList((detail.comments || []).filter(comment => !/^```build-evidence\s/.test(comment.text || comment.body || '')), 'No comments yet.', (comment) => {
     const item = document.createElement('article');
     item.className = 'timeline-item';
-    item.append(line(text(comment.author, 'unknown'), formatDate(comment.created_at)), preBlock(comment.text));
+    item.append(line(text(comment.author, 'unknown'), formatDate(comment.created_at)), preBlock(comment.text ?? comment.body));
     return item;
   }));
   const eventsHeading = document.createElement('h3');
@@ -486,7 +511,7 @@ function renderCommentsEventsPanel(detail) {
   panel.append(renderList(detail.events, 'No events returned.', (event) => {
     const item = document.createElement('article');
     item.className = 'timeline-item';
-    item.append(line(text(event.event || event.type, 'event'), `${text(event.actor, 'system')} · ${formatDate(event.created_at || event.ts)}`));
+    item.append(line(text(event.event || event.type || event.kind, 'event'), `${text(event.actor, 'system')} · ${formatDate(event.created_at || event.ts)}`));
     if (event.summary || event.message) item.append(preBlock(event.summary || event.message));
     return item;
   }));
@@ -514,7 +539,7 @@ function renderDiagnosticsPanel(detail) {
 }
 
 function renderTabPanel(detail, tab) {
-  if (tab === 'evidence') return renderEvidence(detail, { writesEnabled, captureView, postJson, loadTaskDetail });
+  if (tab === 'evidence') return renderEvidence(detail, { writesEnabled: () => writesEnabled('evidence'), captureView, postJson, loadTaskDetail });
   if (tab === 'details') return renderDetailPanel(detail);
   if (tab === 'comments') return renderCommentsEventsPanel(detail);
   if (tab === 'runs') return renderRunsPanel(detail);
@@ -533,7 +558,7 @@ function appendTabs(container, detail) {
     ['log', 'Log'],
     ['context', 'Context'],
     ['diagnostics', 'Diagnostics']
-  ];
+  ].filter(([name]) => !transport.scoped || ['details', 'evidence', 'comments'].includes(name));
   const tabList = document.createElement('div');
   tabList.className = 'drawer-tabs';
   tabList.setAttribute('role', 'tablist');
@@ -579,7 +604,16 @@ function appendTabs(container, detail) {
 
 function appendDrawerWriteControls(task, taskBoard) {
   const boardParam = () => `board=${encodeURIComponent(taskBoard)}`;
-  const view = captureView(true);
+  const baseView = captureView(true);
+  let editRevision = 0, submittedRevision = 0, pendingWrite = false;
+  const view = {isCurrent: () => baseView.isCurrent() && editRevision === submittedRevision};
+  async function drawerPost(url, payload) {
+    if (pendingWrite) throw new Error('A write is already pending. Wait before submitting again.');
+    submittedRevision = editRevision;
+    pendingWrite = true;
+    try { return await postJson(url, payload); }
+    finally { pendingWrite = false; }
+  }
   async function refreshAfterWrite(reopen = true) {
     if (!view.isCurrent()) return;
     const pending = refreshBoard();
@@ -592,6 +626,8 @@ function appendDrawerWriteControls(task, taskBoard) {
 
   const panel = document.createElement('section');
   panel.className = 'drawer-actions';
+  panel.addEventListener('input', () => editRevision++);
+  panel.addEventListener('change', () => editRevision++);
 
   const heading = document.createElement('h3');
   heading.textContent = 'Operator writes';
@@ -604,7 +640,7 @@ function appendDrawerWriteControls(task, taskBoard) {
   panel.append(status);
 
   function actionEndpoint(payload) {
-    return postJson(`/api/kanban/tasks/${encodeURIComponent(task.id)}/actions?${boardParam()}`, payload);
+    return drawerPost(`/api/kanban/tasks/${encodeURIComponent(task.id)}/actions?${boardParam()}`, payload);
   }
 
   const commentForm = document.createElement('form');
@@ -615,7 +651,7 @@ function appendDrawerWriteControls(task, taskBoard) {
     event.preventDefault();
     try {
       setMessage(status, 'Adding comment…');
-      await postJson(`/api/kanban/tasks/${encodeURIComponent(task.id)}/comments?${boardParam()}`, { text: new FormData(commentForm).get('text') });
+      await drawerPost(`/api/kanban/tasks/${encodeURIComponent(task.id)}/comments?${boardParam()}`, { text: new FormData(commentForm).get('text') });
       if (!view.isCurrent()) return;
       setMessage(status, 'Comment added. Refreshing board…');
       await refreshAfterWrite();
@@ -736,7 +772,7 @@ function appendDrawerWriteControls(task, taskBoard) {
       const form = new FormData(linkForm);
       try {
         setMessage(status, `${label}…`);
-        await postJson(`/api/kanban/links?${boardParam()}`, { action, parent_id: form.get('parent_id'), child_id: form.get('child_id') });
+        await drawerPost(`/api/kanban/links?${boardParam()}`, { action, parent_id: form.get('parent_id'), child_id: form.get('child_id') });
         if (!view.isCurrent()) return;
         setMessage(status, `${label} done. Refreshing board…`);
         await refreshAfterWrite();
@@ -795,6 +831,8 @@ function appendDrawerWriteControls(task, taskBoard) {
     quickRow.append(button);
   }
   panel.append(quickRow);
+  const capabilityForLabel = {'Add comment':'comment','Assign':'assign','Complete with result':'complete','Block':'block','Reassign':'reassign','Reassign + reclaim':'reassign','Reclaim':'reclaim','Link dependency':'link','Unlink dependency':'unlink','Edit completed result':'edit','Unblock':'unblock','Archive':'archive'};
+  for (const button of panel.querySelectorAll('button')) button.disabled = !writesEnabled(capabilityForLabel[button.textContent]);
   drawerBody.append(panel);
 }
 
@@ -866,7 +904,6 @@ function renderBoard(board) {
 
 async function refreshBoard() {
   const generation = ++refreshGeneration;
-  gameDev.load();
   const selectedBoard = activeBoard;
   const query = boardParam(selectedBoard);
   boardEl.replaceChildren(preBlock('Loading board…'));
@@ -879,12 +916,10 @@ async function refreshBoard() {
   refreshButton.disabled = true;
   lastRefreshEl.textContent = 'Refreshing…';
   try {
-    const [board, boards, assignees, execution] = await Promise.all([
-      requestJson(`/api/kanban/board?${query}`),
-      requestJson(`/api/kanban/boards?${query}`),
-      requestJson(`/api/kanban/assignees?${query}`),
-      requestJson(`/api/kanban/execution/status?${query}`)
-    ]);
+    if (transport.scoped) await gameDev.load();
+    else gameDev.load();
+    if (generation !== refreshGeneration) return;
+    const [board, boards, assignees, execution] = await transport.loadBoard(selectedBoard);
     if (generation !== refreshGeneration || selectedBoard !== activeBoard) return;
     if (board.board !== selectedBoard) throw new Error('Board response scope mismatch');
     currentAssignees = assignees.assignees || [];

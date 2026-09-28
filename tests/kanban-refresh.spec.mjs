@@ -199,21 +199,28 @@ test('real CLI-shaped detail and intentional writes remain available with execut
   const dir = await mkdtemp(path.join(os.tmpdir(), 'kanban-cli-'));
   const saved = { ...process.env };
   try {
-    const bin = path.join(dir, 'mock.mjs'), log = path.join(dir, 'args');
-    await writeFile(bin, `#!/usr/bin/env node\nimport fs from 'node:fs'; fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2))+'\\n'); console.log(JSON.stringify({task:{id:'t_test',status:'review'},latest_summary:'Real summary',comments:[{body:'Real comment'}],events:[{kind:'assigned',payload:{assignee:'worker'}}]}));\n`);
-    await chmod(bin, 0o755);
-    Object.assign(process.env, { KANBAN_MODE: 'live', KANBAN_READONLY: '0', KANBAN_EXECUTION_ENABLED: '0', HERMES_BIN: bin });
+    const bin = path.join(dir, 'synthetic-hermes'), db = path.join(dir, 'fixture.db');
+    await writeFile(bin, await readFile(path.resolve('tests/helpers/operator-fixture.py')));
+    await chmod(bin, 0o700);
+    Object.assign(process.env, { HOME:dir, HERMES_HOME:dir, HERMES_KANBAN_HOME:dir, HERMES_KANBAN_DB:db, KANBAN_MODE:'live', KANBAN_READONLY:'0', KANBAN_EXECUTION_ENABLED:'0', HERMES_BIN:bin });
+    execFileSync(bin,['--seed']);
+    execFileSync('python3',['-c',`import sqlite3,sys
+with sqlite3.connect(sys.argv[1]) as c:
+ c.execute("INSERT INTO tasks(id,status) VALUES('t_test','review')")
+ c.execute("INSERT INTO task_comments(task_id,body) VALUES('t_test','Real comment')")
+ c.execute("INSERT INTO task_events(task_id,kind,payload) VALUES('t_test','assigned','{}')")
+ c.execute("INSERT INTO task_runs(task_id,outcome,summary) VALUES('t_test','completed','Real summary')")`,db]);
     const detail = await api('/api/kanban/tasks/t_test/show?board=second');
     expect(detail.data.task.latest_summary).toBe('Real summary');
     expect(detail.data.comments[0].text).toBe('Real comment');
     expect(detail.data.events[0].event).toBe('assigned');
-    for (const action of ['assign', 'block', 'unblock', 'complete', 'archive', 'edit']) {
+    for (const action of ['assign', 'block', 'unblock', 'complete', 'edit', 'archive']) {
       expect((await api('/api/kanban/tasks/t_test/actions?board=second', { action, assignee: 'worker', result: 'verified' })).code).toBe(200);
     }
     expect((await api('/api/kanban/tasks?board=second', { title: 'Intentional task', assignee: 'worker', triage: true })).code).toBe(201);
     expect((await api('/api/kanban/tasks/t_test/claim?board=second', { confirm: 'CLAIM' })).code).toBe(423);
     expect((await api('/api/kanban/execution/dispatch?board=second', { confirm: 'DISPATCH' })).code).toBe(423);
-    const calls = (await readFile(log, 'utf8')).trim().split('\n').map(JSON.parse);
+    const calls = JSON.parse(execFileSync('python3',['-c',"import sqlite3,json,sys; c=sqlite3.connect(sys.argv[1]); print(json.dumps([json.loads(r[0]) for r in c.execute('SELECT args FROM calls')]))",db],{encoding:'utf8'}));
     expect(calls.every(args => args.slice(0, 3).join(' ') === 'kanban --board second')).toBe(true);
   } finally { process.env = saved; await rm(dir, { recursive: true, force: true }); }
 });

@@ -9,9 +9,14 @@
     "test:ci": "playwright install chromium && playwright test",
     "test:headed": "playwright test --headed",
     "test:report": "playwright show-report",
+    "test:build-downloads": "node --test tests/game-build-*.node.mjs",
+    "test:playable-static": "node --test tests/playable-*.node.mjs tests/public-downloads.node.mjs",
     "serve:preview": "node scripts/preview-service.mjs",
     "preview:health": "node scripts/preview-service.mjs --healthcheck",
-    "artifacts:video": "node scripts/capture-game-video.mjs"
+    "artifacts:video": "node scripts/capture-game-video.mjs",
+    "test:game-dev-frontend": "node --test tests/game-dev-frontend*.node.mjs",
+    "test:operator": "node --test tests/game-dev-operator.node.mjs tests/game-dev-write.node.mjs tests/operator-security.node.mjs",
+    "test:operator:installed": "node -e \"if (!process.env.KANBAN_AUDIT_SOURCE) throw Error('KANBAN_AUDIT_SOURCE is required')\" && npm run test:operator"
   },
   "dependencies": {
     "three": "^0.182.0"

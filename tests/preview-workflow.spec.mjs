@@ -165,7 +165,7 @@ test('kanban fixture mode honestly disables writes despite the operator flag', a
 
     const createAttempt = await fetch(`${baseUrl}/api/kanban/tasks`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', origin: baseUrl },
       body: JSON.stringify({ title: 'Fixture write should not persist', body: 'test body', priority: 3 })
     });
     expect(createAttempt.status).toBe(423);
